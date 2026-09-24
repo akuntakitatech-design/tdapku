@@ -103,7 +103,7 @@ Tandai nilai rahasia sebagai **Secret**/*Is Build Variable = off* (hanya runtime
 | Build Pack | **Dockerfile** |
 | Base Directory | `/frontend` |
 | Port Exposes | `80` |
-| Domain | `https://tdapekanbaru.id,https://www.tdapekanbaru.id` (dipisah koma; Coolify/Traefik menerbitkan sertifikat Let's Encrypt untuk keduanya) |
+| Domain | `https://tdapekanbaru.id,https://www.tdapekanbaru.id,https://app.tdapekanbaru.id` (dipisah koma; Coolify/Traefik menerbitkan sertifikat Let's Encrypt untuk semuanya) |
 | Health Check | Path `/healthz`, port `80` |
 
 ### Environment variables frontend (semua opsional)
@@ -111,8 +111,25 @@ Tandai nilai rahasia sebagai **Secret**/*Is Build Variable = off* (hanya runtime
 BACKEND_URL=http://backend-tdapku:3000
 NGINX_PORT=80
 CLIENT_MAX_BODY_SIZE=20m
+APP_HOST=app.tdapekanbaru.id
+PUBLIC_HOST=tdapekanbaru.id
 ```
 `CLIENT_MAX_BODY_SIZE` harus ≥ `serverActions.bodySizeLimit` di backend (20 MB).
+
+### Pemisahan domain (mode ketat) — `APP_HOST` / `PUBLIC_HOST`
+Diterapkan oleh Nginx (`frontend/nginx/10-backoffice-host.envsh` + template). Tidak butuh resource Coolify tambahan; backend tetap satu.
+
+| Dibuka di | Path | Hasil |
+|---|---|---|
+| `tdapekanbaru.id` / `www` | `/login`, `/admin`, `/account/*` | 302 → `https://app.tdapekanbaru.id/<path>` |
+| `app.tdapekanbaru.id` | `/` | 302 → `https://app.tdapekanbaru.id/admin` |
+| `app.tdapekanbaru.id` | halaman publik (`/program`, `/daftar/*`, `/kalender`, `/tentang`, `/member`, `/form/*`, `/feedback/*`, …) | 302 → `https://tdapekanbaru.id/<path>` |
+| keduanya | `/checkin`, `/api/*`, `/_next/*`, `/healthz`, aset statis | dilayani langsung |
+
+- Cookie sesi bersifat host-only, sehingga login **harus** terjadi di `app.`; backend (`lib/vps-auth.ts → getAppOrigin`) mengarahkan redirect login/logout ke host yang sedang dibuka selama host itu `APP_URL` atau subdomain-nya (host asing jatuh ke `APP_URL`).
+- `APP_URL` backend tetap `https://tdapekanbaru.id` (dipakai untuk link share/OG dan fallback).
+- Kosongkan `APP_HOST` untuk menonaktifkan seluruh pengalihan (semua path di semua domain).
+- DNS: tambah A `app` → `103.93.129.172` (TTL 900, DNS saja) dan daftarkan `https://app.tdapekanbaru.id` di Domains frontend.
 
 > Frontend dan backend **harus berada di project/environment Coolify yang sama** supaya berbagi jaringan Docker. Bila tidak, aktifkan *Connect to Predefined Network* pada keduanya.
 
@@ -124,7 +141,7 @@ CLIENT_MAX_BODY_SIZE=20m
 2. Deploy **backend** → cek log: harus muncul
    `[schema] ...` lalu `[startup] TDA Pekanbaru siap: MariaDB terverifikasi, storage terkonfigurasi.`
 3. Deploy **frontend** → buka `https://tdapekanbaru.id/healthz` (harus `ok`) lalu `https://tdapekanbaru.id/api/health` (harus `{"ok":true,...}`).
-4. Login di `https://tdapekanbaru.id/login` dengan salah satu akun lama.
+4. Login di `https://app.tdapekanbaru.id/login` dengan salah satu akun lama (membuka `tdapekanbaru.id/login` otomatis dialihkan ke sana).
 5. Uji cepat: buka `/admin`, `/kalender`, `/program/<code>`, satu gambar publikasi (memastikan R2 terbaca), dan satu upload kecil.
 6. Pastikan DNS `tdapekanbaru.id` sudah mengarah ke server Coolify (lihat bagian **4a. DNS**).
 
@@ -134,6 +151,7 @@ CLIENT_MAX_BODY_SIZE=20m
 |---|---|---|---|---|
 | `@` | A | `900` | `103.93.129.172` (IP server Coolify) | **DNS saja** |
 | `www` | A | `900` | `103.93.129.172` | **DNS saja** |
+| `app` | A | `900` | `103.93.129.172` | **DNS saja** |
 
 - Paket gratis DNSCloud.ID mensyaratkan TTL minimal **900** detik; TTL tidak mempengaruhi aplikasi, hanya lama cache resolver (±15 menit propagasi).
 - Proxy **harus** "DNS saja" (bukan Proxied) supaya Traefik di Coolify dapat menyelesaikan verifikasi HTTP-01 Let's Encrypt langsung ke IP server.
@@ -173,6 +191,7 @@ Akun `users` (role/divisi) tetap dikelola dari UI Master Pengurus (`/admin`) ole
 | Backend restart terus, log `DATABASE_URL belum dikonfigurasi` / `ECONNREFUSED` | Env salah / host MariaDB tidak satu jaringan | Gunakan host internal MariaDB (bukan IP publik) dan port 3306. |
 | Log `Tidak dapat memperoleh lock skema database` | Instance lain sedang menerapkan skema >120 dtk | Tunggu lalu redeploy. |
 | Login selalu gagal untuk akun lama | `AUTH_PASSWORD_PEPPER`/`AUTH_SESSION_SECRET` berbeda dari lingkungan lama | Samakan nilainya. |
+| Membuka `/admin` di domain utama selalu berpindah ke `app.` / halaman publik di `app.` berpindah ke domain utama | Perilaku mode ketat (`APP_HOST` terisi) | Normal. Kosongkan `APP_HOST` bila tidak ingin pemisahan. |
 | Login redirect dengan `?error=origin` | `APP_URL` tidak sama dengan domain yang dibuka, atau header `X-Forwarded-Proto` hilang | Set `APP_URL=https://tdapekanbaru.id`; pastikan Traefik→Nginx→Next meneruskan header (sudah di template Nginx). |
 | Cookie tidak tersimpan (login berhasil lalu terlempar ke /login) | `COOKIE_SECURE=true` tapi akses via http | Pakai `COOKIE_SECURE=auto` dan akses via HTTPS. |
 | Gambar/QRIS/flyer 404 atau 500 | Kredensial R2 salah / `R2_PREFIX` tidak kosong | Cek `R2_*`; `R2_PREFIX` harus kosong agar key sama dengan data lama. |

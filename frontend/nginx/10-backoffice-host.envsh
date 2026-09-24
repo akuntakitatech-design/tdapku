@@ -1,0 +1,36 @@
+#!/bin/sh
+# Dijalankan (di-source) oleh entrypoint image nginx SEBELUM envsubst pada template.
+#
+# Pemisahan domain (mode ketat), aktif bila APP_HOST diisi:
+#   APP_HOST    = host backoffice (mis. app.tdapekanbaru.id): /login, /admin, /account, /checkin
+#   PUBLIC_HOST = host publik (default: APP_HOST tanpa label pertama -> tdapekanbaru.id)
+#   - /login, /admin, /account yang dibuka dari host lain  -> 302 https://APP_HOST
+#   - halaman publik yang dibuka dari APP_HOST             -> 302 https://PUBLIC_HOST
+#   - APP_HOST/ (root)                                     -> 302 /admin
+#   /api/*, /_next/*, /healthz, aset statis, dan /checkin dilayani di kedua host.
+# Kosongkan APP_HOST untuk menonaktifkan semua pengalihan (semua path di semua domain).
+
+clean_host() {
+  printf '%s' "$1" | tr -d '[:space:]' | sed -e 's/^[A-Z_]*=//' -e 's#^https\?://##' -e 's#/*$##' -e 's/^["'"'"']//' -e 's/["'"'"']$//'
+}
+
+APP_HOST_RAW="$(clean_host "${APP_HOST:-}")"
+PUBLIC_HOST_RAW="$(clean_host "${PUBLIC_HOST:-}")"
+
+if [ -n "$APP_HOST_RAW" ]; then
+  if [ -z "$PUBLIC_HOST_RAW" ]; then
+    PUBLIC_HOST_RAW="$(printf '%s' "$APP_HOST_RAW" | sed 's/^[^.]*\.//')"
+  fi
+  export APP_HOST="$APP_HOST_RAW"
+  export PUBLIC_HOST="$PUBLIC_HOST_RAW"
+  export BACKOFFICE_REDIRECT_BASE="https://$APP_HOST_RAW"
+  export PUBLIC_REDIRECT_BASE="https://$PUBLIC_HOST_RAW"
+  echo "[nginx] mode ketat: backoffice -> $BACKOFFICE_REDIRECT_BASE, publik -> $PUBLIC_REDIRECT_BASE" >&2
+else
+  # Placeholder agar map tetap valid; nilai redirect kosong = tidak ada pengalihan.
+  export APP_HOST="_backoffice_host_tidak_diset_"
+  export PUBLIC_HOST="_public_host_tidak_diset_"
+  export BACKOFFICE_REDIRECT_BASE=""
+  export PUBLIC_REDIRECT_BASE=""
+  echo "[nginx] APP_HOST kosong: semua path dilayani di semua domain" >&2
+fi
