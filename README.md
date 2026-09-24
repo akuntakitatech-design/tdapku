@@ -2,7 +2,7 @@
 
 Aplikasi manajemen program kerja, keanggotaan, event, kehadiran, keuangan (bendahara), dan situs publik untuk komunitas **Tangan Di Atas (TDA) Pekanbaru** periode 9.0. Repository ini adalah monorepo yang dideploy ke **Coolify** sebagai dua service: `frontend` (Nginx) dan `backend` (Next.js).
 
-> Domain produksi: `https://tdapku.my.id` · Versi aplikasi: **61** (baseline) → migrasi Coolify.
+> Domain produksi: `https://tdapekanbaru.id` (sebelumnya `tdapku.my.id`) · Versi aplikasi: **61** (baseline) → migrasi Coolify.
 
 ---
 

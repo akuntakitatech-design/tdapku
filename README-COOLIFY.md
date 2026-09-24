@@ -3,7 +3,7 @@
 Panduan operasional untuk menjalankan monorepo ini di Coolify sebagai **dua aplikasi** dari **satu repository** (`akuntakitatech-design/tdapku`, branch `main`) plus **satu database MariaDB**.
 
 ```text
-Internet ──▶ Traefik (Coolify, HTTPS tdapku.my.id)
+Internet ──▶ Traefik (Coolify, HTTPS tdapekanbaru.id)
                 │
                 ▼
    [frontend]  Nginx 1.27  :80   ── base dir /frontend  (punya domain publik)
@@ -68,7 +68,7 @@ Salin dari `backend/.env.example`. Minimal yang **wajib**:
 ```env
 NODE_ENV=production
 PORT=3000
-APP_URL=https://tdapku.my.id
+APP_URL=https://tdapekanbaru.id
 COOKIE_SECURE=auto
 TZ=Asia/Jakarta
 
@@ -103,7 +103,7 @@ Tandai nilai rahasia sebagai **Secret**/*Is Build Variable = off* (hanya runtime
 | Build Pack | **Dockerfile** |
 | Base Directory | `/frontend` |
 | Port Exposes | `80` |
-| Domain | `https://tdapku.my.id` (Coolify/Traefik menerbitkan sertifikat Let's Encrypt) |
+| Domain | `https://tdapekanbaru.id,https://www.tdapekanbaru.id` (dipisah koma; Coolify/Traefik menerbitkan sertifikat Let's Encrypt untuk keduanya) |
 | Health Check | Path `/healthz`, port `80` |
 
 ### Environment variables frontend (semua opsional)
@@ -123,10 +123,22 @@ CLIENT_MAX_BODY_SIZE=20m
 1. Deploy **MariaDB** → tunggu status *running*.
 2. Deploy **backend** → cek log: harus muncul
    `[schema] ...` lalu `[startup] TDA Pekanbaru siap: MariaDB terverifikasi, storage terkonfigurasi.`
-3. Deploy **frontend** → buka `https://tdapku.my.id/healthz` (harus `ok`) lalu `https://tdapku.my.id/api/health` (harus `{"ok":true,...}`).
-4. Login di `https://tdapku.my.id/login` dengan salah satu akun lama.
+3. Deploy **frontend** → buka `https://tdapekanbaru.id/healthz` (harus `ok`) lalu `https://tdapekanbaru.id/api/health` (harus `{"ok":true,...}`).
+4. Login di `https://tdapekanbaru.id/login` dengan salah satu akun lama.
 5. Uji cepat: buka `/admin`, `/kalender`, `/program/<code>`, satu gambar publikasi (memastikan R2 terbaca), dan satu upload kecil.
-6. Arahkan DNS `tdapku.my.id` ke server Coolify (A/AAAA record; matikan proxy Cloudflare atau set SSL *Full (strict)*).
+6. Pastikan DNS `tdapekanbaru.id` sudah mengarah ke server Coolify (lihat bagian **4a. DNS**).
+
+### 4a. DNS (registrar DNSCloud.ID, nameserver `oka.ns.dnscloud.id` / `putra.ns.dnscloud.id`)
+
+| Nama | Tipe | TTL | Nilai | Proxy |
+|---|---|---|---|---|
+| `@` | A | `900` | `103.93.129.172` (IP server Coolify) | **DNS saja** |
+| `www` | A | `900` | `103.93.129.172` | **DNS saja** |
+
+- Paket gratis DNSCloud.ID mensyaratkan TTL minimal **900** detik; TTL tidak mempengaruhi aplikasi, hanya lama cache resolver (±15 menit propagasi).
+- Proxy **harus** "DNS saja" (bukan Proxied) supaya Traefik di Coolify dapat menyelesaikan verifikasi HTTP-01 Let's Encrypt langsung ke IP server.
+- Record `staging.app` (VPS lama, `119.28.114.94`) boleh dibiarkan sebagai cadangan sampai Coolify terbukti stabil, lalu dihapus.
+- Jika Coolify menampilkan **"DNS mismatch"** padahal record sudah benar: Settings → Advanced → matikan *Validate DNS*, atau tunggu propagasi lalu Save ulang. Cek dari luar: `curl -s "https://cloudflare-dns.com/dns-query?name=tdapekanbaru.id&type=A" -H "accept: application/dns-json"`.
 
 ---
 
@@ -161,7 +173,7 @@ Akun `users` (role/divisi) tetap dikelola dari UI Master Pengurus (`/admin`) ole
 | Backend restart terus, log `DATABASE_URL belum dikonfigurasi` / `ECONNREFUSED` | Env salah / host MariaDB tidak satu jaringan | Gunakan host internal MariaDB (bukan IP publik) dan port 3306. |
 | Log `Tidak dapat memperoleh lock skema database` | Instance lain sedang menerapkan skema >120 dtk | Tunggu lalu redeploy. |
 | Login selalu gagal untuk akun lama | `AUTH_PASSWORD_PEPPER`/`AUTH_SESSION_SECRET` berbeda dari lingkungan lama | Samakan nilainya. |
-| Login redirect dengan `?error=origin` | `APP_URL` tidak sama dengan domain yang dibuka, atau header `X-Forwarded-Proto` hilang | Set `APP_URL=https://tdapku.my.id`; pastikan Traefik→Nginx→Next meneruskan header (sudah di template Nginx). |
+| Login redirect dengan `?error=origin` | `APP_URL` tidak sama dengan domain yang dibuka, atau header `X-Forwarded-Proto` hilang | Set `APP_URL=https://tdapekanbaru.id`; pastikan Traefik→Nginx→Next meneruskan header (sudah di template Nginx). |
 | Cookie tidak tersimpan (login berhasil lalu terlempar ke /login) | `COOKIE_SECURE=true` tapi akses via http | Pakai `COOKIE_SECURE=auto` dan akses via HTTPS. |
 | Gambar/QRIS/flyer 404 atau 500 | Kredensial R2 salah / `R2_PREFIX` tidak kosong | Cek `R2_*`; `R2_PREFIX` harus kosong agar key sama dengan data lama. |
 | Upload >20 MB ditolak (413) | Batas Nginx/Next | Naikkan `CLIENT_MAX_BODY_SIZE` dan `bodySizeLimit` bersamaan. |
