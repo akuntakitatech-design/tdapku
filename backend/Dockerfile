@@ -6,9 +6,13 @@
 # =============================================================
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
+# Coolify menyuntikkan NODE_ENV=production saat build; Yarn 1 lalu melewatkan devDependencies
+# (tailwindcss, @tailwindcss/postcss, typescript) yang WAJIB ada untuk `next build`.
+# Paksa NODE_ENV=development + --production=false agar semua dependensi terpasang.
+ENV NEXT_TELEMETRY_DISABLED=1 NODE_ENV=development YARN_PRODUCTION=false
 COPY package.json yarn.lock* .npmrc ./
-RUN yarn install --frozen-lockfile --non-interactive || yarn install --non-interactive
+RUN yarn install --frozen-lockfile --non-interactive --production=false \
+ || yarn install --non-interactive --production=false
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
