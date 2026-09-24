@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, MessageCircle, Share2, Sparkles, TicketCheck, Users } from "lucide-react";
 import { getPublicProgram } from "@/db/public-programs";
+import { publicOrigin } from "@/lib/public-origin";
 
 export const dynamic = "force-dynamic";
-const origin = "https://tdapku.my.id";
+const origin = publicOrigin();
 function dateLabel(value: string | null) { if (!value) return "Jadwal segera diumumkan"; return new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" }).format(new Date(`${value}T00:00:00+07:00`)); }
 function titleOf(p: { publicTitle: string; programTitle: string }) { return p.publicTitle || p.programTitle; }
 function rupiah(value: number | null) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0); }

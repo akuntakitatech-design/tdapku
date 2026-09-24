@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import PublicRegistration from "@/components/public-registration";
 import { getPublicEvent } from "@/db/attendance";
+import { publicOrigin } from "@/lib/public-origin";
 
 function eventDescription(event: Awaited<ReturnType<typeof getPublicEvent>>) {
   if (!event) return "Form registrasi event TDA Pekanbaru.";
@@ -25,7 +26,7 @@ export async function generateMetadata({
       : "Registrasi Event — TDA Pekanbaru";
     const description = eventDescription(event);
     const image = event?.flyerKey
-      ? `https://tdapku.my.id/api/public-registration/${event.id}/flyer`
+      ? `${publicOrigin()}/api/public-registration/${event.id}/flyer`
       : undefined;
     return {
       title,

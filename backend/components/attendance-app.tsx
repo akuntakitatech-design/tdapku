@@ -47,6 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { getCachedJson, invalidateClientCache } from "@/lib/client-cache";
+import { publicHost, publicOrigin } from "@/lib/public-origin";
 
 type EventRow = {
   id: number;
@@ -150,7 +151,7 @@ const money = new Intl.NumberFormat("id-ID", {
   currency: "IDR",
   maximumFractionDigits: 0,
 });
-const publicSiteOrigin = "https://tdapku.my.id";
+const publicSiteOrigin = publicOrigin();
 const emptyEventForm = {
   programId: "",
   incomeTaskId: "",
@@ -1158,7 +1159,7 @@ export default function AttendanceApp({
             </div>
           </div>
           <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 font-mono text-xs text-emerald-800 sm:text-sm">
-            tdapku.my.id/daftar/{eventId}
+            {publicHost()}/daftar/{eventId}
           </div>
         </div>
       )}
