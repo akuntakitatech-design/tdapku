@@ -1,0 +1,64 @@
+# ===== Dependensi & build =====
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# File yang dihasilkan otomatis (yarn schema:generate)
+backend/lib/db/schema.generated.ts
+
+# ===== Environment & rahasia: hanya .env.example yang dilacak =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials/
+secrets/
+private/
+
+# ===== Data produksi, upload, backup =====
+uploads/
+storage/
+data/
+backups/
+*.dump
+*.bak
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.sql.gz
+*.ndjson
+*.tar.gz
+*.zip
+
+# ===== Log & sementara =====
+*.log
+logs/
+tmp/
+temp/
+cache/
+*.tmp
+.DS_Store
+
+# ===== Sisa platform lama (Cloudflare / Vinext / Vercel) =====
+.wrangler/
+.sites-runtime/
+.openai/
+.vercel
+outputs/
+work/
