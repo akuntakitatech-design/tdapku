@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ProgramPublication from "@/components/program-management/program-publication";
+import { publicOrigin as getPublicOrigin } from "@/lib/public-origin";
 
 type Question = { id: number; question: string; questionType: string; optionsJson: string; isRequired: number };
 type EventRow = { id: number; name: string; feedbackOpen: number; participantCount: number; responseCount: number };
@@ -17,7 +18,7 @@ type Payload = { questions: Question[]; events: EventRow[]; stats: { responseCou
 type ResultRow = { participantId: number; participantName: string; phone: string; eventId: number; eventName: string; submittedAt: string | null; questionId: number | null; answerJson: string | null };
 type ParticipantResult = { participantId: number; participantName: string; phone: string; eventName: string; submittedAt: string | null; answers: Record<number, string> };
 
-const publicOrigin = "https://tdapku.my.id";
+const publicOrigin = getPublicOrigin();
 
 export default function ProgramFeedback(props: { programId: number; canManage: boolean }) {
   return <><ProgramFeedbackContent {...props} />{props.canManage && <ProgramPublication programId={props.programId} canManage />}</>;
