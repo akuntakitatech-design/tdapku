@@ -25,15 +25,36 @@ backend/lib/db/schema.generated.ts
 *.key
 *.p12
 *.pfx
-credentials/
-secrets/
-private/
+/credentials/
+/secrets/
+/private/
+/backend/credentials/
+/backend/secrets/
+/backend/private/
+
+# ===== Log & sementara =====
+*.log
+/logs/
+/tmp/
+/temp/
+/cache/
+/backend/logs/
+/backend/tmp/
+/backend/temp/
+/backend/cache/
+*.tmp
+.DS_Store
 
 # ===== Data produksi, upload, backup =====
-uploads/
-storage/
-data/
-backups/
+# Pola diberi jalur eksplisit agar TIDAK mengabaikan folder kode (mis. backend/lib/storage).
+/uploads/
+/storage/
+/data/
+/backups/
+/backend/uploads/
+/backend/storage/
+/backend/data/
+/backend/backups/
 *.dump
 *.bak
 *.backup
@@ -46,14 +67,6 @@ backups/
 *.tar.gz
 *.zip
 
-# ===== Log & sementara =====
-*.log
-logs/
-tmp/
-temp/
-cache/
-*.tmp
-.DS_Store
 
 # ===== Sisa platform lama (Cloudflare / Vinext / Vercel) =====
 .wrangler/
