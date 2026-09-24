@@ -322,11 +322,27 @@ export function clearSessionCookieHeader(request?: Request) {
   return `${VPS_SESSION_COOKIE}=; ${cookieAttributes(request)}; Max-Age=0`;
 }
 
-/** Origin aplikasi: APP_URL (Coolify) atau APP_ORIGIN (kompatibilitas staging lama). */
+/**
+ * Origin untuk redirect login/logout/ganti password.
+ * Mengikuti domain yang sedang dibuka pengguna (mis. app.tdapekanbaru.id) selama domain itu sama
+ * dengan APP_URL atau subdomain-nya, sehingga cookie sesi (host-only) tetap terbawa setelah redirect.
+ * Di luar itu, kembali ke APP_URL (Coolify) atau APP_ORIGIN (kompatibilitas staging lama).
+ */
 export function getAppOrigin(request?: Request) {
   const value = (process.env.APP_URL || process.env.APP_ORIGIN)?.trim();
-  if (value) return new URL(value).origin;
-  if (request) return requestOrigin(request);
+  const configured = value ? new URL(value) : null;
+  if (request) {
+    try {
+      const current = new URL(requestOrigin(request));
+      if (!configured) return current.origin;
+      const base = configured.hostname.replace(/^www\./, "");
+      const host = current.hostname;
+      if (host === base || host === `www.${base}` || host.endsWith(`.${base}`)) return current.origin;
+    } catch {
+      // abaikan; pakai APP_URL
+    }
+  }
+  if (configured) return configured.origin;
   throw new Error("APP_URL belum dikonfigurasi.");
 }
 

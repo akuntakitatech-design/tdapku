@@ -65,10 +65,11 @@ Kode bisnis di `backend/db/*` **masih ditulis dengan API D1** (`prepare/bind/fir
 │
 ├── frontend/                 # Service "frontend" di Coolify (Nginx reverse proxy)
 │   ├── Dockerfile            # nginx:1.27-alpine, port 80, healthcheck /healthz
-│   ├── .env.example          # BACKEND_URL, NGINX_PORT, CLIENT_MAX_BODY_SIZE
+│   ├── .env.example          # BACKEND_URL, NGINX_PORT, CLIENT_MAX_BODY_SIZE, APP_HOST, PUBLIC_HOST
 │   └── nginx/
 │       ├── default.conf.template        # Template server block (envsubst saat start)
 │       ├── 05-normalize-backend-url.envsh  # Normalisasi BACKEND_URL (tambah http://, hapus trailing /)
+│       ├── 10-backoffice-host.envsh        # APP_HOST/PUBLIC_HOST → pemisahan backoffice vs publik
 │       └── 16-resolver-fallback.envsh      # Deteksi DNS resolver Docker untuk proxy_pass dinamis
 │
 └── backend/                  # Service "backend" di Coolify (Next.js 16, Node 22)
@@ -167,6 +168,7 @@ Browser ── HTTPS ──▶ Traefik (Coolify) ──▶ [frontend] Nginx :80
                     MariaDB (vps_auth_*)   MariaDB (39 tabel)   Cloudflare R2 (media-tdapku)
 ```
 
+- **Pemisahan domain (mode ketat)**: `app.tdapekanbaru.id` = backoffice (`/login`, `/admin`, `/account`), `tdapekanbaru.id` = publik. Nginx mengalihkan path yang salah tempat (302) berdasarkan `APP_HOST`/`PUBLIC_HOST`; `/checkin`, `/api/*`, `/_next/*`, aset statis dilayani di kedua host. Detail di `README-COOLIFY.md`.
 - Nginx memakai `proxy_pass` dengan **variabel + resolver** sehingga nama `backend-tdapku` di-resolve saat request; jika backend belum siap, Nginx membalas `502 {"error":"BACKEND_UNAVAILABLE"}` dan pulih otomatis.
 - Backend **tidak** punya domain publik; hanya dapat diakses dari jaringan internal Coolify.
 
@@ -182,6 +184,8 @@ POST /api/auth/login (form) ─▶ isSameOriginRequest ─▶ authenticateVpsAcc
    scrypt(password + AUTH_PASSWORD_PEPPER) == vps_auth_accounts.password_hash ?
    ─▶ createVpsSession() → insert vps_auth_sessions (token HMAC AUTH_SESSION_SECRET, TTL jam)
    ─▶ 303 redirect + Set-Cookie tda_session (HttpOnly; Secure otomatis dari X-Forwarded-Proto)
+   Redirect mengikuti host yang dibuka (app.tdapekanbaru.id) bila host = APP_URL atau subdomain-nya;
+   host lain jatuh ke APP_URL (lib/vps-auth.ts → getAppOrigin).
 
 Setiap halaman/API terproteksi:
    getVpsSessionIdentity() (cookie) ─▶ app/chatgpt-auth.ts ─▶ db/access-control.ts

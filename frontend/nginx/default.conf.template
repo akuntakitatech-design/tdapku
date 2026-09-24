@@ -1,5 +1,6 @@
 # Template ini diproses oleh envsubst (image nginx resmi) saat container start.
 # Variabel: ${BACKEND_URL} ${NGINX_PORT} ${CLIENT_MAX_BODY_SIZE} ${NGINX_LOCAL_RESOLVERS}
+#           ${APP_HOST} ${BACKOFFICE_REDIRECT_BASE} ${PUBLIC_REDIRECT_BASE} (dari 10-backoffice-host.envsh)
 #
 # TDA Pekanbaru memakai Next.js SSR: UI dan API dilayani container yang sama, sehingga Nginx
 # memproksi SEMUA path (bukan hanya /api) ke ${BACKEND_URL}. Nginx di sini berperan sebagai
@@ -21,6 +22,35 @@ map $http_x_forwarded_host $forwarded_host {
 map $http_upgrade $connection_upgrade {
     default upgrade;
     ""      close;
+}
+
+# Pemisahan domain mode ketat (aktif bila APP_HOST diisi; lihat 10-backoffice-host.envsh):
+#  - /login /admin /account dari host selain APP_HOST      -> 302 https://APP_HOST   (cookie sesi host-only)
+#  - halaman publik dari APP_HOST                          -> 302 https://PUBLIC_HOST
+#  - APP_HOST/ (root)                                      -> 302 /admin
+#  - /api/*, /_next/*, /healthz, aset statis, /checkin     -> dilayani di kedua host
+map $host $backoffice_base {
+    default        "${BACKOFFICE_REDIRECT_BASE}";
+    "${APP_HOST}"  "";
+}
+map $uri $backoffice_path {
+    default                              0;
+    "~^/(login|admin|account)(/|$)"      1;
+}
+map $host $public_base {
+    default        "";
+    "${APP_HOST}"  "${PUBLIC_REDIRECT_BASE}";
+}
+map $uri $public_path {
+    default                                       1;
+    "~^/(login|admin|account|checkin)(/|$)"       0;
+    "~^/(api|_next)/"                             0;
+    "~^/healthz$"                                 0;
+    "~\.[A-Za-z0-9]+$"                            0;
+}
+map "$host$uri" $app_root {
+    default          0;
+    "${APP_HOST}/"   1;
 }
 
 server {
@@ -58,6 +88,17 @@ server {
 
     # Semua path lain (halaman SSR + /api/*) -> aplikasi Next.js (jaringan internal Coolify)
     location / {
+        # Root host backoffice langsung ke dashboard (halaman login menangani bila belum masuk).
+        if ($app_root = 1) { return 302 ${BACKOFFICE_REDIRECT_BASE}/admin; }
+        # Backoffice hanya di APP_HOST.
+        set $backoffice_go "";
+        if ($backoffice_path = 1) { set $backoffice_go $backoffice_base; }
+        if ($backoffice_go != "") { return 302 $backoffice_go$request_uri; }
+        # Halaman publik hanya di PUBLIC_HOST.
+        set $public_go "";
+        if ($public_path = 1) { set $public_go $public_base; }
+        if ($public_go != "") { return 302 $public_go$request_uri; }
+
         set $backend_upstream "${BACKEND_URL}";
         proxy_pass $backend_upstream;
         proxy_http_version 1.1;
