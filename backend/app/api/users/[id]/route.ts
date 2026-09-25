@@ -1,68 +1,44 @@
-import { accessErrorResponse, requireKetua } from "@/db/access-control";
-import { USER_ROLES, deactivateUser, getUser, updateUser } from "@/db/user-management";
-import { divisionExists } from "@/db/program-management";
+import { accessErrorResponse, requireSuperAdmin } from "@/db/access-control";
+import { AccountError, deleteAccount, getAccount, updateAccountProfile } from "@/db/account-management";
+import { accountErrorResponse, parseProfileInput, parseUserId, rejectCrossOrigin, validateProfileInput } from "@/app/api/users/shared";
+import { isSuperAdmin } from "@/lib/super-admin";
 
-function parseId(raw: string) {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-function parseInput(body: Record<string, unknown>) {
-  const name = String(body.name ?? "").trim();
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const role = String(body.role ?? "viewer");
-  const rawDivisionId = Number(body.divisionId);
-  const divisionId = Number.isInteger(rawDivisionId) && rawDivisionId > 0 ? rawDivisionId : null;
-  const isActive = body.isActive !== false;
-  return { name, email, role, divisionId, isActive };
-}
-
+// Edit profil pengurus — hanya Super Admin; akun Super Admin sendiri tidak dapat diubah.
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireKetua();
-    const id = parseId((await context.params).id);
+    const blocked = rejectCrossOrigin(request);
+    if (blocked) return blocked;
+    await requireSuperAdmin();
+    const id = parseUserId((await context.params).id);
     if (!id) return Response.json({ error: "ID pengurus tidak valid." }, { status: 400 });
-    const input = parseInput(await request.json());
-    if (!input.name || !input.email || !/^\S+@\S+\.\S+$/.test(input.email)) {
-      return Response.json({ error: "Nama dan email aktif wajib diisi." }, { status: 400 });
-    }
-    if (!USER_ROLES.includes(input.role as typeof USER_ROLES[number])) {
-      return Response.json({ error: "Role pengguna tidak valid." }, { status: 400 });
-    }
-    if (input.role === "kadiv" && !input.divisionId) {
-      return Response.json({ error: "Divisi wajib dipilih untuk role Kadiv." }, { status: 400 });
-    }
-    if (input.divisionId && !(await divisionExists(input.divisionId))) {
-      return Response.json({ error: "Divisi tidak ditemukan atau sudah tidak aktif." }, { status: 400 });
-    }
-    if (id === actor.id && (input.role !== "ketua_ksb" || !input.isActive)) {
-      return Response.json({ error: "Akses Ketua/KSB milik akun yang sedang digunakan tidak dapat dinonaktifkan." }, { status: 400 });
-    }
-    const user = await updateUser(id, {
-      ...input,
-      role: input.role as typeof USER_ROLES[number],
-      divisionId: input.role === "kadiv" ? input.divisionId : null,
-    });
-    if (!user) return Response.json({ error: "Pengurus tidak ditemukan." }, { status: 404 });
-    return Response.json({ user });
+    const target = await getAccount(id);
+    if (!target) return Response.json({ error: "Pengurus tidak ditemukan." }, { status: 404 });
+    if (isSuperAdmin(target)) return Response.json({ error: "Akun Super Admin tidak dapat diubah." }, { status: 403 });
+    const input = parseProfileInput(await request.json().catch(() => ({})));
+    const validationError = await validateProfileInput(input);
+    if (validationError) return Response.json({ error: validationError }, { status: 400 });
+    return Response.json({ user: await updateAccountProfile(id, input) });
   } catch (reason) {
-    if (reason instanceof Error && /UNIQUE constraint failed/i.test(reason.message)) {
-      return Response.json({ error: "Email tersebut sudah terdaftar." }, { status: 409 });
-    }
+    if (reason instanceof AccountError) return accountErrorResponse(reason);
     return accessErrorResponse(reason, "Perubahan pengurus belum dapat disimpan.");
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+// Hapus user (soft delete profil + hapus kredensial login). Histori & data bisnis tidak disentuh.
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireKetua();
-    const id = parseId((await context.params).id);
+    const blocked = rejectCrossOrigin(request);
+    if (blocked) return blocked;
+    await requireSuperAdmin();
+    const id = parseUserId((await context.params).id);
     if (!id) return Response.json({ error: "ID pengurus tidak valid." }, { status: 400 });
-    if (id === actor.id) return Response.json({ error: "Akun yang sedang digunakan tidak dapat dinonaktifkan." }, { status: 400 });
-    if (!(await getUser(id))) return Response.json({ error: "Pengurus tidak ditemukan." }, { status: 404 });
-    await deactivateUser(id);
+    const target = await getAccount(id);
+    if (!target) return Response.json({ error: "Pengurus tidak ditemukan." }, { status: 404 });
+    if (isSuperAdmin(target)) return Response.json({ error: "Akun Super Admin tidak dapat dihapus." }, { status: 403 });
+    await deleteAccount(id);
     return Response.json({ ok: true });
   } catch (reason) {
-    return accessErrorResponse(reason, "Pengurus belum dapat dinonaktifkan.");
+    if (reason instanceof AccountError) return accountErrorResponse(reason);
+    return accessErrorResponse(reason, "Akun pengurus belum dapat dihapus.");
   }
 }

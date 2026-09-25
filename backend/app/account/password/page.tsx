@@ -12,9 +12,13 @@ const errorText: Record<string, string> = {
   invalid_current_password: "Password saat ini tidak sesuai.",
   weak_password: "Password baru minimal 12 karakter.",
   mismatch: "Konfirmasi password baru tidak sama.",
+  temp_password_reuse: "Password baru tidak boleh sama dengan password sementara.",
   origin: "Permintaan ditolak karena asal permintaan tidak valid.",
   config: "Konfigurasi autentikasi belum lengkap.",
 };
+
+const inputClass =
+  "h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10";
 
 export default async function PasswordPage({
   searchParams,
@@ -28,6 +32,7 @@ export default async function PasswordPage({
     redirect(`/login?return_to=${encodeURIComponent(returnTo)}`);
   }
 
+  const forced = identity.mustChangePassword;
   const message = params.error ? errorText[params.error] : null;
 
   return (
@@ -47,35 +52,41 @@ export default async function PasswordPage({
           </div>
 
           <p className="mt-5 text-sm leading-6 text-slate-600">
-            Masuk sebagai <strong>{identity.email}</strong>. Gunakan password baru minimal 12 karakter.
+            Masuk sebagai <strong data-testid="password-page-email">{identity.email}</strong>. Gunakan password baru minimal 12 karakter.
           </p>
 
-          {identity.mustChangePassword && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Anda wajib mengganti password sementara sebelum menggunakan aplikasi.
+          {forced && (
+            <div
+              data-testid="temp-password-notice"
+              className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+            >
+              Anda masih menggunakan password sementara. Silakan buat password baru sebelum melanjutkan.
             </div>
           )}
           {message && (
-            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <div data-testid="password-error" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
               {message}
             </div>
           )}
 
-          <form action="/api/auth/password" method="post" className="mt-6 space-y-4">
+          <form action="/api/auth/password" method="post" className="mt-6 space-y-4" data-testid="change-password-form">
             <input type="hidden" name="return_to" value={returnTo} />
+            {!forced && (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold">Password saat ini</span>
+                <input
+                  name="current_password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={256}
+                  data-testid="current-password-input"
+                  className={inputClass}
+                />
+              </label>
+            )}
             <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold">Password saat ini</span>
-              <input
-                name="current_password"
-                type="password"
-                autoComplete="current-password"
-                required
-                maxLength={256}
-                className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold">Password baru</span>
+              <span className="mb-1.5 block text-sm font-semibold">Password Baru</span>
               <input
                 name="new_password"
                 type="password"
@@ -83,11 +94,12 @@ export default async function PasswordPage({
                 required
                 minLength={12}
                 maxLength={256}
-                className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+                data-testid="new-password-input"
+                className={inputClass}
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold">Ulangi password baru</span>
+              <span className="mb-1.5 block text-sm font-semibold">Konfirmasi Password Baru</span>
               <input
                 name="confirm_password"
                 type="password"
@@ -95,16 +107,26 @@ export default async function PasswordPage({
                 required
                 minLength={12}
                 maxLength={256}
-                className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+                data-testid="confirm-password-input"
+                className={inputClass}
               />
             </label>
             <button
               type="submit"
+              data-testid="save-password-button"
               className="h-12 w-full rounded-xl bg-[#0d2f20] px-5 text-sm font-bold text-white transition hover:bg-[#164d35]"
             >
-              Simpan password baru
+              {forced ? "Simpan & Lanjutkan" : "Simpan password baru"}
             </button>
           </form>
+
+          <a
+            href={`/api/auth/logout?return_to=${encodeURIComponent("/login")}`}
+            data-testid="password-page-logout"
+            className="mt-4 block text-center text-sm font-semibold text-slate-500 hover:text-slate-800"
+          >
+            Keluar
+          </a>
         </section>
       </div>
     </main>

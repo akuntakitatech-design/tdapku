@@ -1,50 +1,31 @@
-import { accessErrorResponse, requireKetua } from "@/db/access-control";
-import { USER_ROLES, createUser, listUsers } from "@/db/user-management";
-import { divisionExists } from "@/db/program-management";
+import { accessErrorResponse, requireSuperAdmin, requireUserDirectoryViewer } from "@/db/access-control";
+import { AccountError, createAccount, listAccounts } from "@/db/account-management";
+import { accountErrorResponse, parseProfileInput, rejectCrossOrigin, validateProfileInput } from "@/app/api/users/shared";
+import { VpsAuthError, defaultTempPassword, hashDefaultTempPassword } from "@/lib/vps-auth";
 
-function parseInput(body: Record<string, unknown>) {
-  const name = String(body.name ?? "").trim();
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const role = String(body.role ?? "viewer");
-  const rawDivisionId = Number(body.divisionId);
-  const divisionId = Number.isInteger(rawDivisionId) && rawDivisionId > 0 ? rawDivisionId : null;
-  const isActive = body.isActive !== false;
-  return { name, email, role, divisionId, isActive };
-}
-
-async function validate(input: ReturnType<typeof parseInput>) {
-  if (!input.name || !input.email || !/^\S+@\S+\.\S+$/.test(input.email)) return "Nama dan email aktif wajib diisi.";
-  if (!USER_ROLES.includes(input.role as typeof USER_ROLES[number])) return "Role pengguna tidak valid.";
-  if (input.role === "kadiv" && !input.divisionId) return "Divisi wajib dipilih untuk role Kadiv.";
-  if (input.divisionId && !(await divisionExists(input.divisionId))) return "Divisi tidak ditemukan atau sudah tidak aktif.";
-  return null;
-}
-
+// Daftar pengurus: Ketua/KSB & Super Admin boleh melihat; aksi manajemen akun hanya Super Admin.
 export async function GET() {
   try {
-    await requireKetua();
-    return Response.json({ users: await listUsers() });
+    await requireUserDirectoryViewer();
+    return Response.json({ users: await listAccounts() });
   } catch (reason) {
     return accessErrorResponse(reason, "Master Pengurus belum dapat dimuat.");
   }
 }
 
+// Tambah pengurus: password TIDAK diminta — otomatis password sementara + wajib ganti saat login pertama.
 export async function POST(request: Request) {
   try {
-    await requireKetua();
-    const input = parseInput(await request.json());
-    const validationError = await validate(input);
+    const blocked = rejectCrossOrigin(request);
+    if (blocked) return blocked;
+    await requireSuperAdmin();
+    const input = parseProfileInput(await request.json().catch(() => ({})));
+    const validationError = await validateProfileInput(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const user = await createUser({
-      ...input,
-      role: input.role as typeof USER_ROLES[number],
-      divisionId: input.role === "kadiv" ? input.divisionId : null,
-    });
-    return Response.json({ user }, { status: 201 });
+    const user = await createAccount(input, await hashDefaultTempPassword());
+    return Response.json({ user, temporaryPassword: defaultTempPassword() }, { status: 201 });
   } catch (reason) {
-    if (reason instanceof Error && /UNIQUE constraint failed/i.test(reason.message)) {
-      return Response.json({ error: "Email tersebut sudah terdaftar." }, { status: 409 });
-    }
+    if (reason instanceof AccountError || reason instanceof VpsAuthError) return accountErrorResponse(reason);
     return accessErrorResponse(reason, "Pengurus belum dapat ditambahkan.");
   }
 }

@@ -512,7 +512,7 @@ function LoginGate({
         </h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">
           {authenticated
-            ? "Akun ini belum terdaftar sebagai pengurus aktif. Ketua/KSB dapat menambahkannya melalui menu Pengurus."
+            ? "Akun ini belum terdaftar sebagai pengurus aktif. Super Admin dapat menambahkannya melalui menu Pengurus."
             : "Masuk dengan email dan password pengurus untuk membuka Dashboard, Program Kerja, Kalender, dan Laporan."}
         </p>
         <div className="mt-6 flex justify-center">

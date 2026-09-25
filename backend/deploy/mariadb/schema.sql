@@ -783,3 +783,7 @@ ALTER TABLE `treasury_transactions` ADD CONSTRAINT `fk_treasury_transactions_acc
 ALTER TABLE `treasury_transactions` ADD CONSTRAINT `fk_treasury_transactions_created_by_user_id` FOREIGN KEY IF NOT EXISTS (created_by_user_id) REFERENCES `users` (id);
 ALTER TABLE `users` ADD CONSTRAINT `fk_users_division_id` FOREIGN KEY IF NOT EXISTS (division_id) REFERENCES `divisions` (id);
 ALTER TABLE `vps_auth_sessions` ADD CONSTRAINT `vps_auth_sessions_email_fkey` FOREIGN KEY IF NOT EXISTS (email) REFERENCES `vps_auth_accounts` (email) ON DELETE CASCADE;
+
+-- Manajemen akun (Super Admin): soft delete profil pengurus. Aditif & nullable; NULL = belum dihapus.
+-- Baris users tidak pernah di-DELETE agar seluruh relasi historis (program, approval, transaksi, LPJ, dll.) tetap utuh.
+ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME(3) NULL;

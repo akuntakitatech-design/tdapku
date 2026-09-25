@@ -1,9 +1,11 @@
 import { env } from "@/lib/runtime-env";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import type { AccessUser, AppAccess } from "@/lib/access-types";
+import { isSuperAdmin } from "@/lib/super-admin";
 
 // Email admin utama: dari env BOOTSTRAP_ADMIN_EMAIL (Coolify), fallback ke nilai lama.
 const BOOTSTRAP_ADMIN_EMAIL = (process.env.BOOTSTRAP_ADMIN_EMAIL || "agustrnt@gmail.com").trim().toLowerCase();
+const IS_VPS_RUNTIME = process.env.TDA_RUNTIME !== "chatgpt";
 
 type UserRow = AccessUser & { isActive: number };
 
@@ -21,7 +23,9 @@ function isMembershipDivision(user?: AccessUser | null) {
 function permissionsFor(user?: AccessUser | null) {
   const role = user?.role;
   return {
-    manageUsers: role === "ketua_ksb",
+    manageUsers: role === "ketua_ksb" || isSuperAdmin(user),
+    // Manajemen akun login HANYA milik Super Admin (berdasarkan email, bukan role).
+    manageAccounts: isSuperAdmin(user),
     manageAllPrograms: role === "ketua_ksb",
     manageOwnDivision: role === "kadiv",
     writePrograms: role === "ketua_ksb" || role === "kadiv",
@@ -45,6 +49,14 @@ async function ensureBootstrapAdmin(name: string, email: string) {
       is_active = 1, updated_at = CURRENT_TIMESTAMP`).bind(name, email.toLowerCase()).run();
 }
 
+/** Sesi ada tetapi akun masih memakai password sementara (must_change_password = 1). */
+async function sessionRequiresPasswordChange() {
+  if (!IS_VPS_RUNTIME) return false;
+  const { getVpsSessionIdentity } = await import("@/lib/vps-auth");
+  const identity = await getVpsSessionIdentity().catch(() => null);
+  return Boolean(identity?.mustChangePassword);
+}
+
 export async function getCurrentAccess(): Promise<AppAccess> {
   const identity = await getChatGPTUser();
   if (!identity) {
@@ -53,6 +65,8 @@ export async function getCurrentAccess(): Promise<AppAccess> {
       registered: false,
       identity: null,
       user: null,
+      isSuperAdmin: false,
+      passwordChangeRequired: await sessionRequiresPasswordChange(),
       permissions: permissionsFor(),
     };
   }
@@ -79,6 +93,8 @@ export async function getCurrentAccess(): Promise<AppAccess> {
     registered: Boolean(user),
     identity: { name, email },
     user,
+    isSuperAdmin: isSuperAdmin(user),
+    passwordChangeRequired: false,
     permissions: permissionsFor(user),
   };
 }
@@ -94,6 +110,9 @@ export class AccessError extends Error {
 
 export async function requireRegisteredUser() {
   const access = await getCurrentAccess();
+  if (access.passwordChangeRequired) {
+    throw new AccessError("Anda masih menggunakan password sementara. Silakan buat password baru sebelum melanjutkan.", 403);
+  }
   if (!access.authenticated) throw new AccessError("Silakan masuk untuk mengubah data.", 401);
   if (!access.user) throw new AccessError("Akun Anda belum terdaftar atau sedang dinonaktifkan.");
   return access.user;
@@ -102,6 +121,24 @@ export async function requireRegisteredUser() {
 export async function requireKetua() {
   const user = await requireRegisteredUser();
   if (user.role !== "ketua_ksb") throw new AccessError("Hanya Ketua/KSB yang dapat mengelola Master Pengurus.");
+  return user;
+}
+
+/** Melihat daftar Master Pengurus (tanpa aksi): Ketua/KSB atau Super Admin. */
+export async function requireUserDirectoryViewer() {
+  const user = await requireRegisteredUser();
+  if (user.role !== "ketua_ksb" && !isSuperAdmin(user)) {
+    throw new AccessError("Hanya Ketua/KSB yang dapat melihat Master Pengurus.");
+  }
+  return user;
+}
+
+/** Manajemen akun login pengurus — HANYA Super Admin (agustrnt@gmail.com). */
+export async function requireSuperAdmin() {
+  const user = await requireRegisteredUser();
+  if (!isSuperAdmin(user)) {
+    throw new AccessError("Hanya Super Admin yang dapat mengelola akun pengurus.", 403);
+  }
   return user;
 }
 
