@@ -97,13 +97,13 @@ Kode bisnis di `backend/db/*` **masih ditulis dengan API D1** (`prepare/bind/fir
     │       ├── membership/, membership/public/{payment,qris}/, membership/proof/[id]/
     │       ├── attendance/, attendance/payment-proof/[participantId]/
     │       ├── public-programs/, public-registration/[eventId]/{flyer,qris,payment}/
-    │       ├── public-media/, publication-media/, public-site/, public-site/admin/
+    │       ├── public-media/, publication-media/, public-site/ (+ image/), public-site/admin/{section,navigation,member-submissions}/
     │       └── public/{member-content,member-submission}/, public-feedback/, public-event-feedback/
     │
     ├── components/           # Komponen React (client) per modul bisnis
     │   ├── ui/               # Primitif Shadcn (button, dialog, table, ...)
     │   ├── program-management/   # Dashboard pengurus: list, approval, kalender, notifikasi, tugas
-    │   ├── public-site/      # CMS situs publik & Business Spotlight
+    │   ├── public-site/      # Situs publik: PublicHeader/PublicFooter/PublicShell (header-footer global), motif, Business Spotlight
     │   ├── attendance-app.tsx, checklist-app.tsx, hari-h-mode.tsx
     │   ├── membership-registration.tsx, membership-management.tsx, member-public-form.tsx
     │   ├── public-registration.tsx, public-program-catalog.tsx, public-calendar.tsx
@@ -116,6 +116,8 @@ Kode bisnis di `backend/db/*` **masih ditulis dengan API D1** (`prepare/bind/fir
     │   ├── program-evaluation.ts, program-feedback.ts
     │   ├── membership.ts, attendance.ts
     │   ├── public-programs.ts, public-media.ts, public-site.ts, public-member-submissions.ts
+    │   ├── public-homepage.ts    # Komposisi konten publik (settings + section published + navigasi + fallback)
+    │   ├── storage-references.ts # Hapus file R2 hanya bila tidak direferensikan record lain
     │   └── user-management.ts
     │
     ├── lib/
@@ -224,6 +226,7 @@ Key objek **identik** dengan data lama (`R2_PREFIX` kosong), sehingga 39 objek h
 - **Program**: `POST /api/programs` → `programs` (status draft) → tugas `programs/[id]/tasks` → `approval` (ketua_ksb) → `publication` (+ media ke R2) → pelaksanaan (`attendance`, check-in) → `finance/income` + receipt → `lpj` → `evaluations`/`feedback`. Setiap langkah menulis `notifications` dan `activities`.
 - **Member publik**: `POST /api/membership/public` → `GET .../qris` (gambar QRIS dari R2) → `POST .../payment` (upload bukti ke R2) → pengurus verifikasi via `/api/membership`.
 - **Event publik**: `GET /api/public-programs/[code]` → `POST /api/public-registration/[eventId]` → bukti bayar → QR check-in di `/checkin` → `POST /api/attendance`.
+- **Website publik (CMS)**: pengurus (ketua_ksb) mengedit section di `/api/public-site/admin/section` (Draft → Preview → Publish) dan menu di `/api/public-site/admin/navigation` (`is_active` 1 = tampil). Publik membaca read-only lewat `db/public-homepage.ts` / `GET /api/public-site` (hanya section published + visible dan menu aktif; fallback bila kosong). Gambar section publik via `GET /api/public-site/image`. Header/footer semua halaman publik (`/`, `/tentang`, `/program`, `/program/[code]`, `/kalender`) = `PublicShell`.
 
 ---
 

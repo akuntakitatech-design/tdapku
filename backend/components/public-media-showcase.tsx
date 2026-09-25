@@ -4,7 +4,10 @@ import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { PublicMediaItem } from "@/db/public-media";
 
-export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
+export function PublicMediaShowcase({ items: allItems }: { items: PublicMediaItem[] }) {
+  // Banner yang gagal dimuat disembunyikan → tidak ada broken image di website publik.
+  const [failed, setFailed] = useState<number[]>([]);
+  const items = allItems.filter((item) => !failed.includes(item.id));
   const [active, setActive] = useState(0);
   const touch = useRef(0);
   useEffect(() => {
@@ -20,9 +23,9 @@ export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
   const move = (step: number) =>
     setActive((value) => (value + step + items.length) % items.length);
   return (
-    <section className="bg-[#0d2f20] px-4 pb-3 pt-3 sm:px-0 sm:pb-0 sm:pt-0">
+    <section data-testid="banner-slider" className="bg-tda-navy px-4 pb-3 pt-3 sm:px-0 sm:pb-0 sm:pt-0">
       <div
-        className="relative mx-auto aspect-[16/9] w-full overflow-hidden rounded-2xl bg-emerald-950 shadow-2xl sm:h-[min(72vh,760px)] sm:aspect-auto sm:max-h-none sm:max-w-none sm:rounded-none"
+        className="relative mx-auto aspect-[16/9] w-full overflow-hidden rounded-2xl bg-tda-surface-dark shadow-[var(--tda-shadow-md)] sm:h-[min(64vh,640px)] sm:aspect-auto sm:max-h-none sm:max-w-none sm:rounded-none"
         onTouchStart={(event) => {
           touch.current = event.touches[0].clientX;
         }}
@@ -38,12 +41,13 @@ export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
             alt={item.title || "Kegiatan TDA Pekanbaru"}
             className={`absolute inset-0 size-full object-cover transition-opacity duration-700 ${index === active ? "opacity-100" : "opacity-0"}`}
             loading={index === 0 ? "eager" : "lazy"}
+            onError={() => setFailed((value) => [...value, item.id])}
           />
         ))}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(15,22,64,0.78)] via-[rgba(15,22,64,0.12)] to-transparent" />
         {(current.title || current.description) && (
           <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-9">
-            <p className="max-w-3xl text-2xl font-black sm:text-4xl">
+            <p data-testid="banner-title" className="tda-display max-w-3xl text-2xl sm:text-4xl">
               {current.title}
             </p>
             {current.description && (
@@ -54,7 +58,7 @@ export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
             {current.linkUrl && (
               <a
                 href={current.linkUrl}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-900"
+                data-testid="banner-link" className="tda-btn tda-btn-light mt-4 min-h-11 px-4 text-sm"
               >
                 Lihat Selengkapnya
                 <ExternalLink className="size-4" />
@@ -67,16 +71,18 @@ export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
             <button
               type="button"
               aria-label="Banner sebelumnya"
+              data-testid="banner-slider-prev-button"
               onClick={() => move(-1)}
-              className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55"
+              className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-[rgba(15,22,64,0.45)] text-white backdrop-blur transition-colors hover:bg-[rgba(15,22,64,0.7)] focus-visible:shadow-[var(--tda-ring)] focus-visible:outline-none"
             >
               <ChevronLeft />
             </button>
             <button
               type="button"
               aria-label="Banner berikutnya"
+              data-testid="banner-slider-next-button"
               onClick={() => move(1)}
-              className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55"
+              className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-[rgba(15,22,64,0.45)] text-white backdrop-blur transition-colors hover:bg-[rgba(15,22,64,0.7)] focus-visible:shadow-[var(--tda-ring)] focus-visible:outline-none"
             >
               <ChevronRight />
             </button>
@@ -86,8 +92,9 @@ export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
                   key={item.id}
                   type="button"
                   aria-label={`Buka banner ${index + 1}`}
+                  data-testid={`banner-slider-dot-${index}`}
                   onClick={() => setActive(index)}
-                  className={`h-2 rounded-full transition-all ${index === active ? "w-7 bg-white" : "w-2 bg-white/55"}`}
+                  className={`h-2 rounded-full transition-[width,background-color] ${index === active ? "w-7 bg-white" : "w-2 bg-white/55"}`}
                 />
               ))}
             </div>
@@ -99,46 +106,50 @@ export function PublicMediaShowcase({ items }: { items: PublicMediaItem[] }) {
 }
 
 export function PublicGallery({ items }: { items: PublicMediaItem[] }) {
-  if (!items.length) return null;
+  const [hidden, setHidden] = useState<number[]>([]);
+  const visible = items.filter((item) => !hidden.includes(item.id));
+  if (!visible.length) return null;
   return (
-    <section className="mx-auto max-w-7xl px-5 pb-16">
-      <p className="text-sm font-bold uppercase tracking-[.16em] text-emerald-700">
-        Dokumentasi
-      </p>
-      <h2 className="mt-2 text-3xl font-black">Kegiatan TDA Pekanbaru</h2>
-      <p className="mt-2 max-w-2xl text-slate-600">
-        Momen belajar, berjejaring, dan bertumbuh bersama para pengusaha
-        Pekanbaru.
-      </p>
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map((item, index) => (
-          <a
-            key={item.id}
-            href={item.linkUrl || `/api/public-media/${item.id}/image`}
-            target={item.linkUrl ? undefined : "_blank"}
-            className={`group relative overflow-hidden rounded-2xl bg-slate-200 ${index === 0 ? "col-span-2 row-span-2" : ""}`}
-          >
-            <img
-              src={`/api/public-media/${item.id}/image`}
-              alt={item.title || "Dokumentasi TDA Pekanbaru"}
-              loading="lazy"
-              className="aspect-square size-full object-cover transition duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
-              <p className="font-bold">
-                {item.title || "Kegiatan TDA Pekanbaru"}
-              </p>
-              {item.eventDate && (
-                <p className="mt-1 text-xs text-white/75">
-                  {new Intl.DateTimeFormat("id-ID", {
-                    dateStyle: "long",
-                  }).format(new Date(`${item.eventDate}T00:00:00+07:00`))}
+    <section id="galeri" data-testid="section-gallery" className="tda-section bg-white">
+      <div className="tda-container">
+        <p className="tda-eyebrow">Dokumentasi</p>
+        <h2 className="tda-h2 mt-3 text-tda-navy">Kegiatan TDA Pekanbaru</h2>
+        <p className="tda-lead mt-3 max-w-2xl">
+          Momen belajar, berjejaring, dan bertumbuh bersama para pengusaha
+          Pekanbaru.
+        </p>
+        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {visible.map((item, index) => (
+            <a
+              key={item.id}
+              href={item.linkUrl || `/api/public-media/${item.id}/image`}
+              target={item.linkUrl ? undefined : "_blank"}
+              data-testid={`gallery-item-${index}`}
+              className={`tda-focus group relative overflow-hidden rounded-[var(--tda-radius-md)] bg-tda-bg-tint ${index === 0 && visible.length > 2 ? "col-span-2 row-span-2" : ""}`}
+            >
+              <img
+                src={`/api/public-media/${item.id}/image`}
+                alt={item.title || "Dokumentasi TDA Pekanbaru"}
+                loading="lazy"
+                onError={() => setHidden((value) => [...value, item.id])}
+                className="aspect-square size-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[rgba(15,22,64,0.7)] via-transparent to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
+                <p className="font-bold">
+                  {item.title || "Kegiatan TDA Pekanbaru"}
                 </p>
-              )}
-            </div>
-          </a>
-        ))}
+                {item.eventDate && (
+                  <p className="mt-1 text-xs text-white/80">
+                    {new Intl.DateTimeFormat("id-ID", {
+                      dateStyle: "long",
+                    }).format(new Date(`${item.eventDate}T00:00:00+07:00`))}
+                  </p>
+                )}
+              </div>
+            </a>
+          ))}
+        </div>
       </div>
     </section>
   );

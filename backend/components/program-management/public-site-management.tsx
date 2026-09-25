@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { BusinessSpotlight } from "@/components/public-site/business-spotlight";
 import { HighlightMarquee } from "@/components/public-site/highlight-marquee";
+import { IMPACT_FIELDS } from "@/lib/public-site-content";
+import NavigationManagement from "@/components/program-management/navigation-management";
 
 type Tab = "settings" | "homepage" | "submissions" | "navigation" | "preview";
 
@@ -20,6 +22,8 @@ type CmsSection = {
   secondaryCtaLabel: string;
   secondaryCtaUrl: string;
   status: "draft" | "published" | "archived";
+  /** true bila section published punya perubahan draft yang belum diterbitkan (versi live tetap). */
+  hasUnpublishedChanges?: boolean;
   isVisible: number;
   sortOrder: number;
 };
@@ -58,12 +62,8 @@ const defaultSpotlights = [
   {brand:"", owner:"", position:"", category:"", story:"", videoUrl:"", isVisible:true},
 ];
 
-const impactFields = [
-  ["impact1Value","impact1Label","500+","Member & Alumni"],
-  ["impact2Value","impact2Label","50+","Program Edukasi"],
-  ["impact3Value","impact3Label","100+","Kolaborasi Bisnis"],
-  ["impact4Value","impact4Label","Berdampak","untuk Masyarakat"],
-] as const;
+// Sumber tunggal default statistik (dipakai juga homepage publik).
+const impactFields = IMPACT_FIELDS;
 
 function parseContent(raw:string): Record<string,string> {
   try { return JSON.parse(raw || "{}"); } catch { return {}; }
@@ -296,7 +296,9 @@ export default function PublicSiteManagement() {
           ? {
               ...current,
               sections: current.sections.map((section) =>
-                section.id === editingSection.id ? editingSection : section,
+                section.id === editingSection.id
+                  ? { ...editingSection, hasUnpublishedChanges: editingSection.status === "published" }
+                  : section,
               ),
             }
           : current,
@@ -502,7 +504,7 @@ export default function PublicSiteManagement() {
         ? {
             ...current,
             sections: current.sections.map((section) =>
-              section.id === id ? { ...section, status } : section,
+              section.id === id ? { ...section, status, hasUnpublishedChanges: false } : section,
             ),
           }
         : current,
@@ -999,22 +1001,41 @@ export default function PublicSiteManagement() {
                   </span>
                 </div>
 
+                {section.status === "published" && section.hasUnpublishedChanges ? (
+                  <p data-testid={`cms-section-${section.sectionKey}-pending-changes`} className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800">
+                    Ada perubahan draft yang belum diterbitkan. Website publik masih menampilkan versi live terakhir.
+                  </p>
+                ) : null}
+
                 <div className="mt-5 flex items-center justify-between border-t pt-4">
                   <span className="text-xs text-muted-foreground">
                     Urutan {section.sortOrder}
                   </span>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
+                      data-testid={`cms-section-${section.sectionKey}-edit-button`}
                       onClick={() => setEditingSection(section)}
                       className="rounded-lg border px-3 py-1.5 text-xs font-bold hover:bg-muted"
                     >
                       Edit
                     </button>
 
+                    {section.status === "published" && section.hasUnpublishedChanges ? (
+                      <button
+                        type="button"
+                        data-testid={`cms-section-${section.sectionKey}-republish-button`}
+                        onClick={() => changeSectionStatus(section.id, "published")}
+                        className="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-800"
+                      >
+                        Terbitkan Perubahan
+                      </button>
+                    ) : null}
+
                     <button
                     type="button"
+                    data-testid={`cms-section-${section.sectionKey}-status-button`}
                     onClick={() =>
                       changeSectionStatus(
                         section.id,
@@ -1146,29 +1167,9 @@ export default function PublicSiteManagement() {
           </div> : null}
         </div>
       ) : tab === "navigation" ? (
-        <div className="rounded-2xl border bg-white p-6">
-          <h2 className="text-lg font-bold">Navigasi</h2>
-            <div className="mt-5 rounded-xl border bg-slate-50 p-4">
-              <label className="text-sm font-semibold">Foto / Media Section</label>
-              <input
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp"
-                disabled={uploadingImage}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void uploadSectionImage(file);
-                }}
-                className="mt-2 w-full rounded-xl border bg-white p-3 text-sm"
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                JPG, PNG, atau WebP. Maksimal 10 MB.
-              </p>
-            </div>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            {data.navigation.length} menu tersimpan.
-          </p>
-        </div>
+        // Website 02A: editor navigasi (public_navigation_items). Upload foto section yang dulu salah tempat
+        // di sini dihapus dari tab ini saja — upload foto section tetap tersedia di editor Homepage.
+        <NavigationManagement siteName={data.settings?.siteName} />
       ) : (
         <div className="rounded-2xl border bg-white p-6">
           <h2 className="text-lg font-bold">Preview Homepage</h2>

@@ -4,6 +4,7 @@ import {
 } from "@/db/access-control";
 
 import { updatePublicSiteSection } from "@/db/public-site";
+import { deleteStorageObjectIfUnreferenced } from "@/db/storage-references";
 
 export async function PUT(request: Request) {
   try {
@@ -146,7 +147,8 @@ export async function POST(request: Request) {
       programs[index]={...(programs[index]||{}),imageKey:key,imageName:file.name.slice(0,180),imageType:file.type};
       content.programs=programs;
       await setPublicSiteSectionContent(id,JSON.stringify(content),user.id);
-      if(oldKey) await deleteAttendanceFile(oldKey).catch(()=>undefined);
+      // File lama hanya dihapus bila sudah tidak direferensikan di mana pun (termasuk snapshot live).
+      await deleteStorageObjectIfUnreferenced(oldKey, deleteAttendanceFile);
       return Response.json({success:true});
     }
 
@@ -165,9 +167,8 @@ export async function POST(request: Request) {
       user.id,
     );
 
-    if (previous?.imageKey) {
-      await deleteAttendanceFile(previous.imageKey).catch(() => undefined);
-    }
+    // File lama hanya dihapus bila sudah tidak direferensikan di mana pun (termasuk snapshot live).
+    await deleteStorageObjectIfUnreferenced(previous?.imageKey, deleteAttendanceFile);
 
     return Response.json({ success: true });
   } catch (reason) {
@@ -313,8 +314,9 @@ export async function DELETE(request: Request) {
     if (!section) return Response.json({ error: "Hero tidak ditemukan." }, { status: 404 });
     const content = readHeroContent(section.contentJson);
     const [removed] = content.heroImages.splice(Number(body.index), 1);
-    if (removed?.key) await deleteAttendanceFile(removed.key).catch(() => undefined);
+    // Simpan dulu working copy baru, baru cek referensi (snapshot live/section lain) sebelum hapus file.
     await setPublicSiteSectionContent(Number(body.id), JSON.stringify(content), user.id);
+    await deleteStorageObjectIfUnreferenced(removed?.key, deleteAttendanceFile);
     return Response.json({ success: true });
   } catch (reason) { return accessErrorResponse(reason, "Foto Hero gagal dihapus."); }
 }

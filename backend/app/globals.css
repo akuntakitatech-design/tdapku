@@ -3,6 +3,51 @@
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
 @layer components {
+  /* ---------- Website Publik ---------- */
+  .tda-public {
+    background: var(--tda-bg);
+    color: var(--tda-ink);
+    font-family: var(--font-sans);
+  }
+  .tda-public ::selection { background: var(--tda-soft-blue); color: var(--tda-navy); }
+  .tda-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+  .tda-container { @apply mx-auto w-full max-w-[1240px] px-5 md:px-8; }
+  .tda-section { @apply py-16 md:py-24; }
+  .tda-eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em];
+    color: var(--tda-indigo);
+  }
+  .tda-h1 { font-family: var(--font-display); @apply text-[40px] leading-[1.08] md:text-[54px] xl:text-[64px]; }
+  .tda-h2 { font-family: var(--font-display); @apply text-[30px] leading-[1.15] md:text-[38px] xl:text-[44px]; }
+  .tda-lead { @apply text-base leading-7 md:text-lg md:leading-8; color: var(--tda-muted); }
+  .tda-card {
+    @apply rounded-[var(--tda-radius-md)] border bg-white;
+    border-color: var(--tda-border);
+    box-shadow: var(--tda-shadow-sm);
+    transition: box-shadow var(--tda-dur-2) var(--tda-ease), border-color var(--tda-dur-2) var(--tda-ease), transform var(--tda-dur-2) var(--tda-ease);
+  }
+  .tda-card-link:hover { border-color: var(--tda-border-strong); box-shadow: var(--tda-shadow-md); transform: translateY(-2px); }
+  .tda-btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--tda-radius-sm)] px-6 text-[15px] font-semibold outline-none;
+    transition: background-color var(--tda-dur-2) var(--tda-ease), color var(--tda-dur-2) var(--tda-ease), border-color var(--tda-dur-2) var(--tda-ease), box-shadow var(--tda-dur-2) var(--tda-ease), transform var(--tda-dur-1) var(--tda-ease), filter var(--tda-dur-2) var(--tda-ease);
+  }
+  .tda-btn:focus-visible { box-shadow: var(--tda-ring); }
+  .tda-btn:active { transform: translateY(1px); }
+  .tda-btn[aria-disabled="true"], .tda-btn:disabled { opacity: 0.5; pointer-events: none; }
+  .tda-btn-primary { background-image: var(--tda-gradient); color: var(--tda-on-dark); box-shadow: 0 8px 20px -10px rgba(45, 63, 184, 0.7); }
+  .tda-btn-primary:hover { filter: brightness(1.08); }
+  .tda-btn-outline { border: 1px solid var(--tda-border-strong); background: #fff; color: var(--tda-navy); }
+  .tda-btn-outline:hover { background: var(--tda-bg-tint); border-color: var(--tda-indigo); }
+  .tda-btn-light { background: #fff; color: var(--tda-navy); }
+  .tda-btn-light:hover { background: var(--tda-bg-tint); }
+  .tda-btn-ghost-dark { border: 1px solid rgba(255, 255, 255, 0.28); color: var(--tda-on-dark); }
+  .tda-btn-ghost-dark:hover { background: rgba(255, 255, 255, 0.1); }
+  .tda-link { color: var(--tda-indigo); @apply font-semibold underline-offset-4; transition: color var(--tda-dur-2) var(--tda-ease); }
+  .tda-link:hover { color: var(--tda-navy); text-decoration: underline; }
+  .tda-link:focus-visible, .tda-focus:focus-visible { outline: none; box-shadow: var(--tda-ring); border-radius: 8px; }
+  .tda-motif { pointer-events: none; user-select: none; color: var(--tda-indigo); opacity: var(--tda-motif-opacity); }
+  .tda-motif-strong { opacity: var(--tda-motif-opacity-strong); }
+
   .input {
     @apply h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100;
   }
@@ -63,6 +108,55 @@
   --sidebar-ring: #49a36d;
 }
 
+/* =====================================================================
+ * DESIGN SYSTEM WEBSITE PUBLIK TDA PEKANBARU (Website 00 — LOCKED)
+ * Sumber tunggal token untuk Homepage, Header, Footer, About, Program, Agenda,
+ * Direktori, Galeri, Detail page & komponen publik berikutnya.
+ * Token backoffice (shadcn di atas) sengaja tidak diubah.
+ * ===================================================================== */
+:root {
+  --tda-navy: #1E2A8A;       /* Deep Navy — dasar gelap / teks utama / section tertentu */
+  --tda-indigo: #2D3FB8;     /* Indigo — warna brand utama */
+  --tda-violet: #4F5BD5;     /* Blue Violet — bagian gradient TDA */
+  --tda-soft-blue: #C7D1FF;  /* Soft Blue — background ringan / aksen / highlight */
+
+  --tda-bg: #FFFFFF;
+  --tda-bg-soft: #F7F8FD;    /* off-white */
+  --tda-bg-tint: #EEF1FF;    /* very light blue */
+  --tda-surface-dark: #161F66;
+  --tda-ink: #0F1640;
+  --tda-muted: #4A5174;
+  --tda-on-dark: #F5F7FF;
+  --tda-on-dark-muted: #C9D0F5;
+
+  --tda-border: rgba(30, 42, 138, 0.12);
+  --tda-border-strong: rgba(30, 42, 138, 0.22);
+
+  /* Gradient utama: Navy → Indigo → Blue Violet (TERBATAS: CTA utama, aksen, highlight) */
+  --tda-gradient: linear-gradient(135deg, var(--tda-navy) 0%, var(--tda-indigo) 52%, var(--tda-violet) 100%);
+  --tda-gradient-soft: linear-gradient(135deg, rgba(199, 209, 255, 0.55) 0%, rgba(255, 255, 255, 0) 65%);
+
+  --tda-radius-sm: 10px;
+  --tda-radius-md: 16px;
+  --tda-radius-lg: 24px;
+
+  --tda-shadow-sm: 0 1px 2px rgba(30, 42, 138, 0.06), 0 1px 1px rgba(30, 42, 138, 0.04);
+  --tda-shadow-md: 0 12px 32px -12px rgba(30, 42, 138, 0.18);
+  --tda-ring: 0 0 0 4px rgba(45, 63, 184, 0.22);
+
+  --tda-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --tda-dur-1: 150ms;
+  --tda-dur-2: 220ms;
+
+  /* Motif Melayu Riau: opacity 5–15% */
+  --tda-motif-opacity: 0.08;
+  --tda-motif-opacity-strong: 0.14;
+
+  /* z-index */
+  --tda-z-header: 40;
+  --tda-z-menu: 50;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -99,7 +193,19 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: var(--font-tda-sans), "Plus Jakarta Sans", ui-sans-serif, Arial, sans-serif;
+  --font-display: var(--font-tda-display), "DM Serif Display", Georgia, serif;
+  /* Token Website Publik TDA → utilitas Tailwind: bg-tda-navy, text-tda-indigo, border-tda-soft, dst. */
+  --color-tda-navy: var(--tda-navy);
+  --color-tda-indigo: var(--tda-indigo);
+  --color-tda-violet: var(--tda-violet);
+  --color-tda-soft: var(--tda-soft-blue);
+  --color-tda-ink: var(--tda-ink);
+  --color-tda-muted: var(--tda-muted);
+  --color-tda-bg: var(--tda-bg);
+  --color-tda-bg-soft: var(--tda-bg-soft);
+  --color-tda-bg-tint: var(--tda-bg-tint);
+  --color-tda-surface-dark: var(--tda-surface-dark);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
@@ -107,12 +213,20 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 * { border-color: var(--border); }
 button, input, textarea { font: inherit; }
 ::selection { background: #bfe3ca; color: #153323; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tda-public *, .tda-public *::before, .tda-public *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
 
 @keyframes tda-showcase-marquee {
   from { transform: translate3d(0,0,0); }
