@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import ProgramApp from "@/components/program-management/program-app";
 import { chatGPTSignInPath, chatGPTSignOutPath } from "@/app/chatgpt-auth";
 
@@ -8,7 +9,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminPage() {
+// Dinamis: status sesi (wajib ganti password) diperiksa di server setiap permintaan.
+export const dynamic = "force-dynamic";
+
+export default async function AdminPage() {
+  if (process.env.TDA_RUNTIME !== "chatgpt") {
+    const { getVpsSessionIdentity } = await import("@/lib/vps-auth");
+    const identity = await getVpsSessionIdentity().catch(() => null);
+    // Password sementara belum diganti → Dashboard tidak boleh dibuka.
+    if (identity?.mustChangePassword) redirect("/account/password?return_to=%2Fadmin");
+  }
   return (
     <ProgramApp
       signInPath={chatGPTSignInPath("/admin")}

@@ -98,6 +98,26 @@ export async function hashVpsPassword(password: string) {
   return ["scrypt-v1", String(SCRYPT_N), String(SCRYPT_R), String(SCRYPT_P), salt.toString("base64url"), derived.toString("base64url")].join("$");
 }
 
+/**
+ * Password sementara awal untuk akun baru / hasil reset (env DEFAULT_TEMP_PASSWORD).
+ * Tidak ada nilai bawaan di kode: bila env kosong, aksi gagal dengan pesan jelas.
+ */
+export function defaultTempPassword() {
+  const value = process.env.DEFAULT_TEMP_PASSWORD;
+  if (!value || !value.trim()) throw new VpsAuthError("temp_password_unconfigured", 500);
+  return value;
+}
+
+function isDefaultTempPassword(password: string) {
+  const value = process.env.DEFAULT_TEMP_PASSWORD;
+  return Boolean(value && value.trim()) && password === value;
+}
+
+/** Hash password sementara (scrypt-v1 + pepper, sama seperti password biasa). */
+export async function hashDefaultTempPassword() {
+  return hashVpsPassword(defaultTempPassword());
+}
+
 async function verifyPassword(password: string, encoded: string) {
   const [version, nRaw, rRaw, pRaw, saltRaw, hashRaw] = encoded.split("$");
   const n = Number(nRaw);
@@ -261,16 +281,32 @@ export async function revokeVpsSession(token: string | null | undefined) {
   await mariaDb.query(`UPDATE vps_auth_sessions SET revoked_at = NOW(3) WHERE token_hash = ? AND revoked_at IS NULL`, [tokenHash(token)]);
 }
 
+/** Cabut semua sesi aktif sebuah akun (reset password / nonaktif / hapus). */
+export async function revokeAllVpsSessions(emailInput: string) {
+  await mariaDb.query(`UPDATE vps_auth_sessions SET revoked_at = NOW(3) WHERE email = ? AND revoked_at IS NULL`, [normalizeEmail(emailInput)]);
+}
+
+/**
+ * Ganti password.
+ * - Akun dengan must_change_password = 1 (login memakai password sementara): password saat ini
+ *   tidak diminta lagi karena sesi yang valid sudah membuktikannya. Status dibaca dari DB, bukan dari klien.
+ * - Akun biasa: password saat ini wajib benar.
+ * Password baru tidak boleh sama dengan password sementara (DEFAULT_TEMP_PASSWORD).
+ */
 export async function changeVpsPassword(emailInput: string, currentPassword: string, newPassword: string) {
   const email = normalizeEmail(emailInput);
-  const result = await mariaDb.query<{ password_hash: string }>(
-    `SELECT password_hash FROM vps_auth_accounts WHERE email = ? AND is_active = 1 LIMIT 1`,
+  const result = await mariaDb.query<{ password_hash: string; must_change_password: number }>(
+    `SELECT password_hash, must_change_password FROM vps_auth_accounts WHERE email = ? AND is_active = 1 LIMIT 1`,
     [email],
   );
-  const currentHash = result.rows[0]?.password_hash;
-  if (!currentHash || !(await verifyPassword(currentPassword, currentHash))) {
+  const account = result.rows[0];
+  if (!account) throw new VpsAuthError("invalid_current_password", 400);
+  const forced = Boolean(Number(account.must_change_password));
+  if (!forced && !(await verifyPassword(currentPassword, account.password_hash))) {
     throw new VpsAuthError("invalid_current_password", 400);
   }
+  if (!newPassword.trim()) throw new VpsAuthError("weak_password", 400);
+  if (isDefaultTempPassword(newPassword)) throw new VpsAuthError("temp_password_reuse", 400);
 
   const nextHash = await hashVpsPassword(newPassword);
   await mariaDb.transaction(async (connection) => {

@@ -14,8 +14,14 @@ export type AppAccess = {
   registered: boolean;
   identity: { name: string; email: string } | null;
   user: AccessUser | null;
+  /** true hanya untuk Super Admin utama (lihat lib/super-admin.ts). */
+  isSuperAdmin: boolean;
+  /** Sesi valid, tetapi pengguna wajib mengganti password sementara sebelum memakai aplikasi. */
+  passwordChangeRequired: boolean;
   permissions: {
     manageUsers: boolean;
+    /** Tambah/edit/reset password/aktif-nonaktif/hapus akun — hanya Super Admin. */
+    manageAccounts: boolean;
     manageAllPrograms: boolean;
     manageOwnDivision: boolean;
     writePrograms: boolean;
@@ -29,8 +35,11 @@ export const anonymousAccess: AppAccess = {
   registered: false,
   identity: null,
   user: null,
+  isSuperAdmin: false,
+  passwordChangeRequired: false,
   permissions: {
     manageUsers: false,
+    manageAccounts: false,
     manageAllPrograms: false,
     manageOwnDivision: false,
     writePrograms: false,

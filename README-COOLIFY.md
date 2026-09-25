@@ -77,6 +77,8 @@ DATABASE_URL=mysql://mariadb:PASSWORD@HOST_INTERNAL_MARIADB:3306/default
 AUTH_SESSION_SECRET=<hex 64 karakter, sama dengan lingkungan lama>
 AUTH_PASSWORD_PEPPER=<hex 64 karakter, sama dengan lingkungan lama>
 AUTH_SESSION_TTL_HOURS=12
+# Password sementara untuk Tambah User & Reset Password oleh Super Admin (min. 12 karakter, disimpan sebagai hash)
+DEFAULT_TEMP_PASSWORD=<password sementara>
 
 BOOTSTRAP_ADMIN_EMAIL=agustrnt@gmail.com
 # BOOTSTRAP_ADMIN_PASSWORD hanya perlu bila tabel akun login masih kosong
