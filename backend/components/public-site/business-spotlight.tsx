@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Play, X } from "lucide-react";
 
 type Spotlight = {
   brand:string;
@@ -42,10 +43,6 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
   const [playing,setPlaying]=useState<Spotlight|null>(null);
 
   useEffect(()=>{
-    setActive(0);
-  },[visible.length]);
-
-  useEffect(()=>{
     if(visible.length<2 || playing)return;
     const timer=window.setInterval(()=>{
       setActive(v=>(v+1)%visible.length);
@@ -61,12 +58,12 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
     .filter(Boolean);
 
   return (
-    <div className="business-spotlight-layout mt-10">
+    <div data-testid="business-spotlight" className="business-spotlight-layout mt-10">
       <article
         key={active}
-        className="business-spotlight-main group overflow-hidden rounded-[28px] border bg-white shadow-lg"
+        data-testid="business-spotlight-featured" className="business-spotlight-main group overflow-hidden rounded-[var(--tda-radius-lg)] border border-[color:var(--tda-border)] bg-white shadow-[var(--tda-shadow-md)]"
       >
-        <div className="relative aspect-video overflow-hidden bg-slate-900">
+        <div className="relative aspect-video overflow-hidden bg-tda-surface-dark">
           {playing ? (
             <>
               <iframe
@@ -80,9 +77,10 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
               <button
                 type="button"
                 onClick={()=>setPlaying(null)}
-                className="absolute right-4 top-4 z-20 rounded-lg bg-black/65 px-3 py-2 text-xs font-bold text-white"
+                data-testid="business-spotlight-close-button"
+                className="absolute right-4 top-4 z-20 inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[rgba(15,22,64,0.75)] px-3 text-xs font-bold text-white focus-visible:shadow-[var(--tda-ring)] focus-visible:outline-none"
               >
-                ✕ Tutup Video
+                <X className="size-4" /> Tutup Video
               </button>
             </>
           ) : (
@@ -93,16 +91,17 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
               />
 
-              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[rgba(15,22,64,0.75)] via-[rgba(15,22,64,0.1)] to-transparent" />
 
               <button
                 type="button"
                 onClick={()=>setPlaying(hero)}
-                className="absolute inset-0 flex items-center justify-center"
+                className="absolute inset-0 flex items-center justify-center focus-visible:outline-none"
                 aria-label={`Putar video ${hero.brand}`}
+                data-testid="business-spotlight-play-button"
               >
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-2xl shadow-xl">
-                  ▶
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-tda-indigo shadow-xl transition-transform duration-200 group-hover:scale-105">
+                  <Play className="ml-1 size-7 fill-current" />
                 </span>
               </button>
             </>
@@ -115,7 +114,7 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
               </p>
             ) : null}
 
-            <h3 className="mt-2 text-2xl font-bold md:text-3xl">
+            <h3 className="tda-display mt-2 text-2xl md:text-3xl">
               {hero.brand}
             </h3>
 
@@ -128,7 +127,7 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
 
         {hero.story ? (
           <div className="p-6">
-            <p className="text-base italic leading-7 text-slate-600">
+            <p className="text-base italic leading-7 text-tda-muted">
               “{hero.story}”
             </p>
           </div>
@@ -143,32 +142,33 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
           <button
             key={`${item.brand}-${i}`}
             type="button"
+            data-testid={`business-spotlight-queue-${i}`}
             onClick={()=>{
               setActive(visible.indexOf(item));
               setPlaying(item);
             }}
-            className="group flex w-full items-center gap-4 rounded-2xl border bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="group flex w-full items-center gap-4 rounded-[var(--tda-radius-md)] border border-[color:var(--tda-border)] bg-white p-3 text-left shadow-[var(--tda-shadow-sm)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--tda-shadow-md)] focus-visible:shadow-[var(--tda-ring)] focus-visible:outline-none"
           >
-            <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+            <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-tda-bg-tint">
               <img
                 src={thumbnail(item.videoUrl)}
                 alt={item.brand}
                 className="h-full w-full object-cover"
               />
-              <span className="absolute inset-0 flex items-center justify-center text-xl text-white drop-shadow">
-                ▶
+              <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow">
+                <Play className="size-6 fill-current" />
               </span>
             </div>
 
             <div className="min-w-0">
-              <p className="truncate font-bold text-slate-900">
+              <p className="truncate font-bold text-tda-navy">
                 {item.brand}
               </p>
-              <p className="mt-1 truncate text-sm text-slate-500">
+              <p className="mt-1 truncate text-sm text-tda-muted">
                 {item.owner}
               </p>
               {item.category ? (
-                <p className="mt-2 text-xs font-semibold uppercase text-amber-700">
+                <p className="mt-2 text-xs font-semibold uppercase text-tda-indigo">
                   {item.category}
                 </p>
               ) : null}

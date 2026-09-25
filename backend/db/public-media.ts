@@ -126,10 +126,9 @@ export async function deletePublicMedia(id: number) {
     .bind(id)
     .first<{ imageKey: string }>();
   await db().prepare(`DELETE FROM public_media WHERE id = ?`).bind(id).run();
-  if (row?.imageKey)
-    await bucket()
-      .delete(row.imageKey)
-      .catch(() => undefined);
+  // File hanya dihapus bila tidak lagi direferensikan record lain (banner/galeri/section/submission).
+  const { deleteStorageObjectIfUnreferenced } = await import("@/db/storage-references");
+  await deleteStorageObjectIfUnreferenced(row?.imageKey, (key) => bucket().delete(key));
 }
 
 export async function getPublicMediaImage(id: number, activeOnly: boolean) {

@@ -67,11 +67,13 @@ export async function DELETE(request:Request) {
     const {deleteAttendanceFile}=await import("@/db/attendance");
     const {deletePublicMemberSubmission}=await import("@/db/public-member-submissions");
 
-    for(const key of [item.logo_key,item.business_photo_key,item.profile_photo_key]) {
-      if(key) await deleteAttendanceFile(key);
-    }
+    const {deleteStorageObjectIfUnreferenced}=await import("@/db/storage-references");
 
+    // Hapus record dulu, lalu file hanya bila sudah tidak direferensikan di tempat lain.
     await deletePublicMemberSubmission(Number(id));
+    for(const key of [item.logo_key,item.business_photo_key,item.profile_photo_key]) {
+      await deleteStorageObjectIfUnreferenced(key,deleteAttendanceFile);
+    }
     return Response.json({ok:true});
   } catch(reason) {
     return accessErrorResponse(reason,"Submission belum dapat dihapus.");
