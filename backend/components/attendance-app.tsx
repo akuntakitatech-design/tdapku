@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { SearchEmptyState, SearchField, matchesSearch } from "@/components/search-field";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   ArrowLeft,
   Banknote,
@@ -18,7 +20,6 @@ import {
   Plus,
   QrCode,
   RefreshCw,
-  Search,
   Share2,
   Trash2,
   UserCheck,
@@ -139,6 +140,10 @@ type AttendanceSnapshot = {
 
 let attendanceSnapshot: AttendanceSnapshot | null = null;
 
+/** Opsi dropdown rekening (label informatif; nomor rekening tidak ditampilkan/dicari). */
+function accountOption(account: TreasuryAccount) {
+  return { value: String(account.id), label: account.name, description: account.type === "bank" ? account.bankName || "Bank" : "Kas" };
+}
 const categories = [
   "Member TDA",
   "Pengurus TDA",
@@ -240,6 +245,7 @@ export default function AttendanceApp({
   const [eventId, setEventId] = useState(() => initialSnapshot?.eventId ?? 0);
   const [tab, setTab] = useState<Tab>(fastMode ? "checkin" : "dashboard");
   const [query, setQuery] = useState("");
+  const [paymentQuery, setPaymentQuery] = useState("");
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(() => !initialSnapshot);
   const [participantsLoading, setParticipantsLoading] = useState(false);
@@ -442,12 +448,14 @@ export default function AttendanceApp({
     [participants, eventId],
   );
   const present = rows.filter((participant) => participant.checkedInAt);
+  // Tab Pembayaran: pencarian client-side atas seluruh peserta event terpilih (data sudah dimuat penuh per event).
+  const paymentRows = rows.filter((participant) => participant.amountDue > 0);
+  const visiblePayments = paymentRows.filter((participant) => matchesSearch(paymentQuery, [
+    participant.name, participant.phone, participant.category, participant.organization, participant.passportNumber,
+  ]));
   const filtered = rows.filter(
     (participant) =>
-      (!query ||
-        `${participant.name} ${participant.phone} ${participant.organization}`
-          .toLowerCase()
-          .includes(query.toLowerCase())) &&
+      matchesSearch(query, [participant.name, participant.phone, participant.organization, participant.passportNumber]) &&
       (!category || participant.category === category),
   );
   const rate = rows.length
@@ -1043,18 +1051,21 @@ export default function AttendanceApp({
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <select
-            value={eventId}
-            onChange={(e) => selectEvent(Number(e.target.value))}
-            className="h-11 min-w-64 rounded-xl border bg-white px-3 text-sm font-semibold"
-            aria-label="Pilih event"
-          >
-            {events.map((event) => (
-              <option key={event.id} value={event.id}>
-                {event.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            className="min-w-64"
+            testId="attendance-event-select"
+            ariaLabel="Pilih event"
+            value={String(eventId)}
+            onChange={(value) => selectEvent(Number(value))}
+            placeholder="Pilih event"
+            searchPlaceholder="Cari event..."
+            options={events.map((event) => ({
+              value: String(event.id),
+              label: event.name,
+              description: [event.eventDate, event.programCode].filter(Boolean).join(" · "),
+              keywords: [event.publicTitle, event.programTitle, event.location],
+            }))}
+          />
           {fastMode ? (
             <Link
               href="/#attendance"
@@ -1269,15 +1280,13 @@ export default function AttendanceApp({
         <section className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-col justify-between gap-3 lg:flex-row">
             <div className="flex flex-1 flex-col gap-2 sm:flex-row">
-              <label className="relative flex-1">
-                <Search className="absolute left-3 top-3 size-5 text-muted-foreground" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Cari nama atau WhatsApp…"
-                  className="h-11 w-full rounded-xl border pl-10 pr-3 text-sm"
-                />
-              </label>
+              <SearchField
+                className="flex-1"
+                value={query}
+                onChange={setQuery}
+                testId="participant-search-input"
+                placeholder="Cari nama, WhatsApp, instansi, atau TDA Passport…"
+              />
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -1314,9 +1323,15 @@ export default function AttendanceApp({
               pembayaran tunai.
             </p>
           </div>
+          {paymentRows.length > 0 && (
+            <SearchField value={paymentQuery} onChange={setPaymentQuery} className="mt-4"
+              placeholder="Cari nama, WhatsApp, kategori, atau TDA Passport…" testId="payment-search-input" />
+          )}
           <div className="mt-5 space-y-3">
-            {rows
-              .filter((participant) => participant.amountDue > 0)
+            {paymentRows.length > 0 && visiblePayments.length === 0 && (
+              <SearchEmptyState testId="payment-search-empty" onClear={() => setPaymentQuery("")} />
+            )}
+            {visiblePayments
               .map((participant) => (
                 <article
                   key={participant.id}
@@ -1430,15 +1445,13 @@ export default function AttendanceApp({
             <p className="mt-1 text-sm text-muted-foreground">
               Cari peserta, lalu tekan tombol Hadir.
             </p>
-            <label className="relative mt-4 block">
-              <Search className="absolute left-3 top-3 size-5 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Nama atau nomor WhatsApp…"
-                className="h-11 w-full rounded-xl border pl-10 pr-3 text-sm"
-              />
-            </label>
+            <SearchField
+              className="mt-4"
+              value={query}
+              onChange={setQuery}
+              testId="checkin-search-input"
+              placeholder="Nama, nomor WhatsApp, atau TDA Passport…"
+            />
             <ParticipantTable
               rows={filtered.filter((p) => !p.checkedInAt)}
               onCheckIn={checkIn}
@@ -1575,21 +1588,16 @@ export default function AttendanceApp({
               </select>
             </Field>
             <Field label="Rekening/Kas penerima">
-              <select
-                value={onsiteForm.accountId}
-                onChange={(e) =>
-                  setOnsiteForm({ ...onsiteForm, accountId: e.target.value })
-                }
-                className="h-11 rounded-xl border bg-white px-3"
+              <SearchableSelect
+                testId="onsite-account-select"
                 required
-              >
-                <option value="">Pilih rekening atau kas</option>
-                {treasuryAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
+                value={String(onsiteForm.accountId)}
+                onChange={(value) => setOnsiteForm({ ...onsiteForm, accountId: value })}
+                emptyOption={{ value: "", label: "Pilih rekening atau kas" }}
+                placeholder="Pilih rekening atau kas"
+                searchPlaceholder="Cari rekening..."
+                options={treasuryAccounts.map(accountOption)}
+              />
             </Field>
             <Field label="Nominal diterima">
               <div className="relative">
@@ -1777,27 +1785,25 @@ export default function AttendanceApp({
           </DialogHeader>
           <div className="grid gap-4 lg:grid-cols-2">
             <Field label="Program Kerja">
-              <select
-                value={eventForm.programId}
-                onChange={(e) =>
+              <SearchableSelect
+                testId="event-program-select"
+                value={String(eventForm.programId)}
+                onChange={(value) =>
                   setEventForm({
                     ...eventForm,
-                    programId: e.target.value,
-                    isCollaboration: e.target.value
-                      ? false
-                      : eventForm.isCollaboration,
+                    programId: value,
+                    isCollaboration: value ? false : eventForm.isCollaboration,
                   })
                 }
-                className="h-11 rounded-xl border bg-white px-3"
-              >
-                <option value="">Tidak dihubungkan</option>
-                {programs.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.programCode} · {program.title} ·{" "}
-                    {program.divisionName}
-                  </option>
-                ))}
-              </select>
+                emptyOption={{ value: "", label: "Tidak dihubungkan" }}
+                placeholder="Tidak dihubungkan"
+                searchPlaceholder="Cari program..."
+                options={programs.map((program) => ({
+                  value: String(program.id),
+                  label: `${program.programCode} · ${program.title}`,
+                  description: program.divisionName,
+                }))}
+              />
             </Field>
             {!eventForm.programId && (
               <section className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 lg:col-span-2">
@@ -1869,24 +1875,16 @@ export default function AttendanceApp({
             )}
             {eventForm.programId && (
               <Field label="Breakdown penerimaan peserta">
-                <select
-                  value={eventForm.incomeTaskId}
-                  onChange={(e) =>
-                    setEventForm({ ...eventForm, incomeTaskId: e.target.value })
-                  }
-                  className="h-11 rounded-xl border bg-white px-3"
-                >
-                  <option value="">Transaksi Umum Program</option>
-                  {attendanceTasks
-                    .filter(
-                      (task) => task.programId === Number(eventForm.programId),
-                    )
-                    .map((task) => (
-                      <option key={task.id} value={task.id}>
-                        {task.title}
-                      </option>
-                    ))}
-                </select>
+                <SearchableSelect
+                  testId="event-income-task-select"
+                  value={String(eventForm.incomeTaskId)}
+                  onChange={(value) => setEventForm({ ...eventForm, incomeTaskId: value })}
+                  emptyOption={{ value: "", label: "Transaksi Umum Program" }}
+                  searchPlaceholder="Cari breakdown..."
+                  options={attendanceTasks
+                    .filter((task) => task.programId === Number(eventForm.programId))
+                    .map((task) => ({ value: String(task.id), label: task.title }))}
+                />
               </Field>
             )}
             <Field label="Nama event">
@@ -2093,15 +2091,23 @@ export default function AttendanceApp({
                 <div>
                   <h3 className="font-bold">Informasi pembayaran</h3>
                   <Field label="Rekening tujuan">
-                    <select
-                      value={eventForm.treasuryAccountId}
-                      onChange={(e) => {
+                    <SearchableSelect
+                      testId="event-payment-account-select"
+                      required
+                      value={String(eventForm.treasuryAccountId)}
+                      emptyOption={{ value: "", label: "Pilih rekening penerima" }}
+                      placeholder="Pilih rekening penerima"
+                      searchPlaceholder="Cari rekening..."
+                      options={treasuryAccounts
+                        .filter((account) => account.type === "bank")
+                        .map(accountOption)}
+                      onChange={(value) => {
                         const account = treasuryAccounts.find(
-                          (item) => item.id === Number(e.target.value),
+                          (item) => item.id === Number(value),
                         );
                         setEventForm({
                           ...eventForm,
-                          treasuryAccountId: e.target.value,
+                          treasuryAccountId: value,
                           bankName:
                             account?.type === "bank" ? account.bankName : "",
                           bankAccountNumber:
@@ -2114,18 +2120,7 @@ export default function AttendanceApp({
                               : "",
                         });
                       }}
-                      className="h-11 rounded-xl border bg-white px-3"
-                      required
-                    >
-                      <option value="">Pilih rekening penerima</option>
-                      {treasuryAccounts
-                        .filter((account) => account.type === "bank")
-                        .map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.name}
-                          </option>
-                        ))}
-                    </select>
+                    />
                   </Field>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <Field label="Bank">
@@ -2407,6 +2402,13 @@ function ParticipantTable({
           </tr>
         </thead>
         <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="px-2 py-10 text-center text-sm text-muted-foreground" data-testid="participant-table-empty">
+                Tidak ada peserta yang cocok.
+              </td>
+            </tr>
+          ) : null}
           {rows.map((row) => (
             <tr key={row.id} className="border-b last:border-0">
               <td className="px-2 py-3">

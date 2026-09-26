@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { PublicMediaItem } from "@/db/public-media";
+import { responsiveImage } from "@/lib/public-image";
 
 export function PublicMediaShowcase({ items: allItems }: { items: PublicMediaItem[] }) {
   // Banner yang gagal dimuat disembunyikan → tidak ada broken image di website publik.
@@ -37,7 +38,9 @@ export function PublicMediaShowcase({ items: allItems }: { items: PublicMediaIte
         {items.map((item, index) => (
           <img
             key={item.id}
-            src={`/api/public-media/${item.id}/image`}
+            {...responsiveImage(`/api/public-media/${item.id}/image`, [640, 828, 1080, 1920], 1080)}
+            sizes="(min-width: 1280px) 1200px, 100vw"
+            decoding="async"
             alt={item.title || "Kegiatan TDA Pekanbaru"}
             className={`absolute inset-0 size-full object-cover transition-opacity duration-700 ${index === active ? "opacity-100" : "opacity-0"}`}
             loading={index === 0 ? "eager" : "lazy"}
@@ -128,9 +131,11 @@ export function PublicGallery({ items }: { items: PublicMediaItem[] }) {
               className={`tda-focus group relative overflow-hidden rounded-[var(--tda-radius-md)] bg-tda-bg-tint ${index === 0 && visible.length > 2 ? "col-span-2 row-span-2" : ""}`}
             >
               <img
-                src={`/api/public-media/${item.id}/image`}
+                {...responsiveImage(`/api/public-media/${item.id}/image`, [384, 640, 828, 1080], 640)}
+                sizes={index === 0 && visible.length > 2 ? "(min-width: 1024px) 50vw, 100vw" : "(min-width: 1024px) 25vw, 50vw"}
                 alt={item.title || "Dokumentasi TDA Pekanbaru"}
                 loading="lazy"
+                decoding="async"
                 onError={() => setHidden((value) => [...value, item.id])}
                 className="aspect-square size-full object-cover transition-transform duration-500 group-hover:scale-105"
               />

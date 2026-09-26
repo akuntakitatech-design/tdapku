@@ -8,6 +8,7 @@ import { PublicGallery } from "@/components/public-media-showcase";
 import { BusinessSpotlight } from "@/components/public-site/business-spotlight";
 import { HighlightMarquee } from "@/components/public-site/highlight-marquee";
 import { HeroBackdrop, type HeroSlide } from "@/components/public-site/hero-backdrop";
+import { programFlyerUrl, responsiveImage } from "@/lib/public-image";
 import { PublicHeader } from "@/components/public-site/public-header";
 import { PublicFooter } from "@/components/public-site/public-footer";
 
@@ -68,7 +69,10 @@ const HERO_FALLBACK_SLIDES: HeroSlide[] = [
 
 function resolveHeroSlides(images: { src: string; alt: string }[]): { source: "cms" | "fallback"; slides: HeroSlide[] } {
   const cms = images.filter((image) => image.src.startsWith("/")).slice(0, 5);
-  return cms.length ? { source: "cms", slides: cms.map((image) => ({ ...image, position: "center 40%" })) } : { source: "fallback", slides: HERO_FALLBACK_SLIDES };
+  // Foto CMS (asli bisa 5–8 MB) → versi WebP responsif via optimizer; slide 1 tetap satu-satunya yang eager/priority.
+  return cms.length
+    ? { source: "cms", slides: cms.map((image) => ({ ...image, ...responsiveImage(image.src, [640, 828, 1080, 1920], 1920), position: "center 40%" })) }
+    : { source: "fallback", slides: HERO_FALLBACK_SLIDES };
 }
 
 /** Urutan default desain final (dipakai jika baris CMS tidak ada). Admin dapat mengubah via sort_order CMS. */
@@ -126,7 +130,7 @@ function ProofSection({ impact, programCount }: { impact: PublicHomepage["impact
         <div className="relative lg:pb-14">
           <div className="relative aspect-[16/10] overflow-hidden rounded-[var(--tda-radius-lg)] bg-tda-navy lg:aspect-[5/4]">
             {/* eslint-disable-next-line @next/next/no-img-element -- foto kegiatan (CMS/WebP statis), container ber-rasio tetap → tanpa CLS */}
-            <img src={photo} srcSet={impact?.image ? undefined : "/hero/tda-hero-2-960.webp 960w, /hero/tda-hero-2-1920.webp 1920w"}
+            <img {...(impact?.image ? responsiveImage(photo, [640, 828, 1080, 1200]) : { src: photo, srcSet: "/hero/tda-hero-2-960.webp 960w, /hero/tda-hero-2-1920.webp 1920w" })}
               sizes="(min-width: 1024px) 640px, 100vw" alt="Pengurus dan anggota TDA Pekanbaru pada Serah Terima Amanah 8.0 ke 9.0" data-testid="impact-image"
               loading="lazy" decoding="async" className="size-full object-cover object-[center_62%]" />
             <div className="absolute inset-0 bg-gradient-to-t from-tda-navy/45 via-transparent to-transparent" aria-hidden="true" />
@@ -173,7 +177,7 @@ function ProgramsSection({ programs }: { programs: Program[] }) {
                 <div className="relative aspect-[4/3] overflow-hidden bg-tda-navy">
                   {program.flyerKey ? (
                     /* next/image: thumbnail WebP sesuai lebar kartu (bukan file asli 2–3,7 MB). API flyer tidak berubah. */
-                    <Image src={`/api/public-programs/${program.programCode}/flyer`} alt={`Flyer ${title}`} fill
+                    <Image src={programFlyerUrl(program.programCode, program.flyerKey)} alt={`Flyer ${title}`} fill
                       sizes="(min-width: 1024px) 380px, (min-width: 640px) 50vw, 100vw"
                       className="object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]" />
                   ) : (
@@ -255,7 +259,7 @@ function AboutSection({ block }: { block: PublicSectionBlock | null }) {
       <div className="tda-container grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-20">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[var(--tda-radius-lg)] bg-tda-navy sm:aspect-[4/3] lg:aspect-[4/5]">
           {/* eslint-disable-next-line @next/next/no-img-element -- container ber-rasio tetap; gambar CMS atau WebP statis */}
-          <img src={image} srcSet={about.image ? undefined : "/hero/tda-hero-4-960.webp 960w, /hero/tda-hero-4-1920.webp 1920w"}
+          <img {...(about.image ? responsiveImage(image, [640, 828, 1080, 1200]) : { src: image, srcSet: "/hero/tda-hero-4-960.webp 960w, /hero/tda-hero-4-1920.webp 1920w" })}
             sizes="(min-width: 1024px) 560px, 100vw" alt={about.title || "Tentang TDA Pekanbaru"} data-testid="about-image"
             loading="lazy" decoding="async" className="size-full object-cover" />
         </div>

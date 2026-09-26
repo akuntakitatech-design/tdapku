@@ -87,6 +87,20 @@ export async function getPublicSiteLogo() {
     .first<{ logoKey: string | null; updatedAt: string | null }>();
 }
 
+/** Favicon website (kolom existing public_site_settings.favicon_key). */
+export async function getPublicSiteFavicon() {
+  return db()
+    .prepare("SELECT favicon_key AS faviconKey FROM public_site_settings WHERE id = 1 LIMIT 1")
+    .first<{ faviconKey: string | null }>();
+}
+
+export async function setPublicSiteFaviconKey(key: string | null, userId: number) {
+  await db()
+    .prepare("UPDATE public_site_settings SET favicon_key = ?, updated_by_user_id = ?, updated_at = datetime('now') WHERE id = 1")
+    .bind(key, userId)
+    .run();
+}
+
 export async function setPublicSiteLogoKey(key: string | null, userId: number) {
   await db()
     .prepare("UPDATE public_site_settings SET logo_key = ?, updated_by_user_id = ?, updated_at = datetime('now') WHERE id = 1")
@@ -228,12 +242,14 @@ export async function getLiveSectionImage(sectionKey: string, slot: "main" | "he
   if (!row) return null;
   const content = parseContent(row.contentJson);
   const live = readSnapshot(content) ?? workingSnapshot(row, row.publishedAt || "");
-  if (slot === "main") return live.imageKey ? { key: live.imageKey, type: live.imageType } : null;
+  // Versi = digit published_at (sama dengan parameter ?v= yang dibuat imageUrl() homepage) → dasar cache immutable.
+  const version = row.publishedAt ? String(row.publishedAt).replace(/\D/g, "").slice(0, 14) || null : null;
+  if (slot === "main") return live.imageKey ? { key: live.imageKey, type: live.imageType, version } : null;
   const list = slot === "hero" ? live.content.heroImages : live.content.programs;
   const item = Array.isArray(list) ? (list[index] as Record<string, unknown> | undefined) : undefined;
   const key = slot === "hero" ? item?.key : item?.imageKey;
   const type = slot === "hero" ? item?.type : item?.imageType;
-  return typeof key === "string" && key ? { key, type: typeof type === "string" ? type : null } : null;
+  return typeof key === "string" && key ? { key, type: typeof type === "string" ? type : null, version } : null;
 }
 
 

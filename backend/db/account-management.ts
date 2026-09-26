@@ -155,20 +155,70 @@ function assertNotSuperAdmin(target: AccountRow, action: string) {
 }
 
 async function assertEmailAvailable(connection: PoolConnection, email: string, exceptUserId?: number) {
-  const users = await rows<RowDataPacket & { id: number }>(
+  const users = await rows<RowDataPacket & { id: number; deletedAt: string | null }>(
     connection,
-    `SELECT id FROM users WHERE LOWER(TRIM(email)) = ? ${exceptUserId ? "AND id <> ?" : ""} LIMIT 1`,
+    `SELECT id, deleted_at AS deletedAt FROM users WHERE LOWER(TRIM(email)) = ? ${exceptUserId ? "AND id <> ?" : ""} LIMIT 1`,
     exceptUserId ? [email, exceptUserId] : [email],
   );
-  if (users.length) throw new AccountError("Email tersebut sudah terdaftar.", 409);
+  if (!users.length) return;
+  // Email milik akun yang sudah dihapus (soft delete): tidak bisa dipakai akun lain (users_email_unique),
+  // tetapi dapat diaktifkan kembali lewat "Tambah Pengurus".
+  if (users[0].deletedAt) {
+    throw new AccountError("Email tersebut milik akun pengurus yang sudah dihapus. Gunakan Tambah Pengurus untuk mengaktifkannya kembali.", 409);
+  }
+  throw new AccountError("Email tersebut sudah terdaftar.", 409);
 }
 
-/** Tambah pengurus + akun login dengan password sementara (must_change_password = 1). */
-export async function createAccount(input: AccountProfileInput, tempPasswordHash: string) {
+export type CreateAccountResult = { user: ManagedAccount | null; reactivated: boolean };
+
+/**
+ * Tambah pengurus + akun login dengan password sementara (must_change_password = 1).
+ *
+ * - Email belum pernah ada            → buat baris `users` + `vps_auth_accounts` baru.
+ * - Email ada & belum dihapus         → tolak "Email tersebut sudah terdaftar." (termasuk akun nonaktif;
+ *                                       akun nonaktif diaktifkan dari tombol "Aktifkan" di daftar).
+ * - Email ada & sudah dihapus (soft)  → REAKTIVASI baris `users` yang sama (ID & seluruh histori dipertahankan):
+ *                                       deleted_at = NULL, is_active = 1, profil/role/divisi dari form terbaru,
+ *                                       kredensial login dibuat/di-reset ke password sementara + wajib ganti,
+ *                                       sesi lama dicabut. Tidak ada baris baru, tidak ada histori yang dihapus.
+ */
+export async function createAccount(input: AccountProfileInput, tempPasswordHash: string): Promise<CreateAccountResult> {
   const email = normalizeEmailForComparison(input.email);
   if (isSuperAdminEmail(email)) throw new AccountError("Email Super Admin tidak dapat didaftarkan ulang.", 403);
-  const id = await mariaDb.transaction(async (connection) => {
-    await assertEmailAvailable(connection, email);
+  const result = await mariaDb.transaction(async (connection) => {
+    const [existing] = await rows<RowDataPacket & { id: number; deletedAt: string | null }>(
+      connection,
+      `SELECT id, deleted_at AS deletedAt FROM users WHERE LOWER(TRIM(email)) = ? ORDER BY id LIMIT 1 FOR UPDATE`,
+      [email],
+    );
+    if (existing && !existing.deletedAt) throw new AccountError("Email tersebut sudah terdaftar.", 409);
+
+    if (existing) {
+      const id = Number(existing.id);
+      await exec(
+        connection,
+        `UPDATE users SET name = ?, email = ?, role = ?, division_id = ?, is_active = 1, deleted_at = NULL, updated_at = ${USERS_NOW} WHERE id = ?`,
+        [input.name, email, input.role, input.divisionId, id],
+      );
+      const [auth] = await rows<RowDataPacket>(connection, `SELECT email FROM vps_auth_accounts WHERE email = ? LIMIT 1 FOR UPDATE`, [email]);
+      if (auth) {
+        // Sisa kredensial lama (jika ada): reset ke password sementara, aktifkan, cabut sesi lama.
+        await exec(
+          connection,
+          `UPDATE vps_auth_accounts SET display_name = ?, password_hash = ?, is_active = 1, must_change_password = 1, failed_attempts = 0, locked_until = NULL, updated_at = NOW(3) WHERE email = ?`,
+          [input.name, tempPasswordHash, email],
+        );
+        await exec(connection, `UPDATE vps_auth_sessions SET revoked_at = NOW(3) WHERE email = ? AND revoked_at IS NULL`, [email]);
+      } else {
+        await exec(
+          connection,
+          `INSERT INTO vps_auth_accounts (email, display_name, password_hash, is_active, must_change_password) VALUES (?, ?, ?, 1, 1)`,
+          [email, input.name, tempPasswordHash],
+        );
+      }
+      return { id, reactivated: true };
+    }
+
     const auth = await rows<RowDataPacket>(connection, `SELECT email FROM vps_auth_accounts WHERE email = ? LIMIT 1`, [email]);
     if (auth.length) throw new AccountError("Email tersebut sudah memiliki akun login.", 409);
     const inserted = await exec(
@@ -181,9 +231,9 @@ export async function createAccount(input: AccountProfileInput, tempPasswordHash
       `INSERT INTO vps_auth_accounts (email, display_name, password_hash, is_active, must_change_password) VALUES (?, ?, ?, 1, 1)`,
       [email, input.name, tempPasswordHash],
     );
-    return Number(inserted.insertId);
+    return { id: Number(inserted.insertId), reactivated: false };
   });
-  return getAccount(id);
+  return { user: await getAccount(result.id), reactivated: result.reactivated };
 }
 
 /**

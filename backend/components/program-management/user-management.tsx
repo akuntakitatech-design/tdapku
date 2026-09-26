@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import type { AppAccess, UserRole } from "@/lib/access-types";
 import { getCachedJson, invalidateClientCache } from "@/lib/client-cache";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchEmptyState, SearchField, matchesSearch } from "@/components/search-field";
 
 type Division = { id: number; code: string; name: string; sortOrder: number };
 type AccountStatus = "active" | "must_change_password" | "inactive";
@@ -104,6 +106,11 @@ export default function UserManagement({
   }, [access.permissions.manageUsers]);
 
   const activeCount = useMemo(() => users.filter((user) => user.isActive).length, [users]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | AccountStatus>("all");
+  // Pencarian client-side (Master Pengurus kecil & sudah dimuat penuh): nama, email, role/jabatan, divisi.
+  const visibleUsers = useMemo(() => users.filter((user) => (statusFilter === "all" || user.status === statusFilter)
+    && matchesSearch(search, [user.name, user.email, roleLabels[user.role], user.role, user.divisionName])), [users, search, statusFilter]);
 
   async function refreshAfterChange() {
     invalidateClientCache("/api/users", "/api/program-management/bootstrap");
@@ -132,7 +139,13 @@ export default function UserManagement({
       if (editing) {
         toast.success("Data pengurus berhasil diperbarui.");
       } else {
-        setNotice({ title: "Pengurus berhasil ditambahkan.", user: payload.user, temporaryPassword: payload.temporaryPassword });
+        setNotice({
+          title: payload.reactivated
+            ? "Akun sebelumnya ditemukan dan berhasil diaktifkan kembali. Password sementara telah direset."
+            : "Pengurus berhasil ditambahkan.",
+          user: payload.user,
+          temporaryPassword: payload.temporaryPassword,
+        });
       }
       await refreshAfterChange();
     } catch (reason) {
@@ -193,7 +206,7 @@ export default function UserManagement({
 
     {access.permissions.manageUsers && <section className="overflow-hidden rounded-2xl border bg-white shadow-sm" data-testid="user-directory">
       <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><UsersRound className="size-5 text-primary" /><h2 className="font-bold">Daftar Pengurus</h2></div><p className="mt-1 text-sm text-muted-foreground">{activeCount} akun aktif dari {users.length} akun terdaftar</p></div>{canManage ? <Button type="button" onClick={openCreate} data-testid="add-user-button"><Plus />Tambah Pengurus</Button> : <p className="text-xs text-muted-foreground sm:max-w-56 sm:text-right" data-testid="account-management-readonly-note">Manajemen akun hanya dapat dilakukan oleh Super Admin.</p>}</div>
-      {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-5 animate-spin" />Memuat pengurus…</div> : users.length === 0 ? <div className="grid min-h-48 place-items-center p-6 text-center"><div><ShieldCheck className="mx-auto size-8 text-primary" /><p className="mt-3 font-bold">Belum ada pengurus</p></div></div> : <div className="divide-y">{users.map((user) => {
+      {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-5 animate-spin" />Memuat pengurus…</div> : users.length === 0 ? <div className="grid min-h-48 place-items-center p-6 text-center"><div><ShieldCheck className="mx-auto size-8 text-primary" /><p className="mt-3 font-bold">Belum ada pengurus</p></div></div> : <><div className="grid gap-2 border-b p-4 sm:grid-cols-[1fr_220px]" data-testid="user-search-bar"><SearchField value={search} onChange={setSearch} placeholder="Cari pengurus (nama, email, jabatan, divisi)…" testId="user-search-input" /><Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | AccountStatus)}><SelectTrigger className="h-10" data-testid="user-status-filter" aria-label="Filter status akun"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem><SelectItem value="active">Aktif</SelectItem><SelectItem value="must_change_password">Wajib ganti password</SelectItem><SelectItem value="inactive">Nonaktif</SelectItem></SelectContent></Select></div>{visibleUsers.length === 0 ? <SearchEmptyState testId="user-search-empty" onClear={() => { setSearch(""); setStatusFilter("all"); }} /> : <div className="divide-y">{visibleUsers.map((user) => {
         const status = statusBadge[user.status];
         const showActions = canManage && !user.isSuperAdmin;
         return <article key={user.id} data-testid={`user-row-${user.id}`} className={`flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between ${user.isActive ? "" : "bg-muted/40"}`}>
@@ -205,10 +218,10 @@ export default function UserManagement({
             <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setPending({ kind: "delete", user })} data-testid={`delete-user-${user.id}`}><Trash2 />Hapus User</Button>
           </div>}
         </article>;
-      })}</div>}
+      })}</div>}</>}
     </section>}
 
-    <Dialog open={formOpen} onOpenChange={(open) => { if (!saving) setFormOpen(open); }}><DialogContent><form onSubmit={saveUser} data-testid="user-form"><DialogHeader><DialogTitle>{editing ? "Edit Pengurus" : "Tambah Pengurus"}</DialogTitle><DialogDescription>Email harus sama dengan email akun login pengurus yang akan digunakan.</DialogDescription></DialogHeader><div className="grid gap-4 py-5"><div className="grid gap-2"><Label htmlFor="user-name">Nama lengkap</Label><Input id="user-name" data-testid="user-form-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required maxLength={120} /></div><div className="grid gap-2"><Label htmlFor="user-email">Email akun pengurus</Label><Input id="user-email" data-testid="user-form-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={180} /></div><div className="grid gap-4 sm:grid-cols-2"><div className="grid gap-2"><Label>Role</Label><Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value as UserRole, divisionId: value === "kadiv" ? form.divisionId : "" })}><SelectTrigger className="w-full" data-testid="user-form-role"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ketua_ksb">Ketua/KSB</SelectItem><SelectItem value="bendahara">Bendahara</SelectItem><SelectItem value="kadiv">Kadiv</SelectItem><SelectItem value="viewer">Viewer</SelectItem></SelectContent></Select></div><div className="grid gap-2"><Label>Divisi</Label><Select value={form.divisionId} onValueChange={(value) => setForm({ ...form, divisionId: value })} disabled={form.role !== "kadiv"}><SelectTrigger className="w-full" data-testid="user-form-division"><SelectValue placeholder={form.role === "kadiv" ? "Pilih divisi" : "Tidak diperlukan"} /></SelectTrigger><SelectContent>{divisions.map((division) => <SelectItem key={division.id} value={String(division.id)}>{division.name}</SelectItem>)}</SelectContent></Select></div></div>{!editing && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900" data-testid="user-form-temp-password-info">Password tidak perlu diisi. Akun baru otomatis memakai password sementara dan user wajib membuat password baru saat login pertama.</div>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Batal</Button><Button type="submit" data-testid="user-form-submit" disabled={saving || !form.name.trim() || !form.email.trim() || (form.role === "kadiv" && !form.divisionId)}>{saving && <LoaderCircle className="animate-spin" />}Simpan</Button></DialogFooter></form></DialogContent></Dialog>
+    <Dialog open={formOpen} onOpenChange={(open) => { if (!saving) setFormOpen(open); }}><DialogContent><form onSubmit={saveUser} data-testid="user-form"><DialogHeader><DialogTitle>{editing ? "Edit Pengurus" : "Tambah Pengurus"}</DialogTitle><DialogDescription>Email harus sama dengan email akun login pengurus yang akan digunakan.</DialogDescription></DialogHeader><div className="grid gap-4 py-5"><div className="grid gap-2"><Label htmlFor="user-name">Nama lengkap</Label><Input id="user-name" data-testid="user-form-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required maxLength={120} /></div><div className="grid gap-2"><Label htmlFor="user-email">Email akun pengurus</Label><Input id="user-email" data-testid="user-form-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={180} /></div><div className="grid gap-4 sm:grid-cols-2"><div className="grid gap-2"><Label>Role</Label><Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value as UserRole, divisionId: value === "kadiv" ? form.divisionId : "" })}><SelectTrigger className="w-full" data-testid="user-form-role"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ketua_ksb">Ketua/KSB</SelectItem><SelectItem value="bendahara">Bendahara</SelectItem><SelectItem value="kadiv">Kadiv</SelectItem><SelectItem value="viewer">Viewer</SelectItem></SelectContent></Select></div><div className="grid gap-2"><Label>Divisi</Label><SearchableSelect testId="user-form-division" value={String(form.divisionId)} onChange={(value) => setForm({ ...form, divisionId: value })} disabled={form.role !== "kadiv"} placeholder={form.role === "kadiv" ? "Pilih divisi" : "Tidak diperlukan"} searchPlaceholder="Cari divisi..." options={divisions.map((division) => ({ value: String(division.id), label: division.name }))} /></div></div>{!editing && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900" data-testid="user-form-temp-password-info">Password tidak perlu diisi. Akun baru otomatis memakai password sementara dan user wajib membuat password baru saat login pertama.</div>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Batal</Button><Button type="submit" data-testid="user-form-submit" disabled={saving || !form.name.trim() || !form.email.trim() || (form.role === "kadiv" && !form.divisionId)}>{saving && <LoaderCircle className="animate-spin" />}Simpan</Button></DialogFooter></form></DialogContent></Dialog>
 
     <AlertDialog open={Boolean(pending)} onOpenChange={(open) => { if (!open && !working) setPending(null); }}>
       <AlertDialogContent data-testid={pending ? `${pending.kind}-dialog` : undefined}>
@@ -232,7 +245,7 @@ export default function UserManagement({
 
     <Dialog open={Boolean(notice)} onOpenChange={(open) => { if (!open) setNotice(null); }}>
       <DialogContent data-testid="temp-password-dialog">
-        <DialogHeader><DialogTitle>{notice?.title}</DialogTitle><DialogDescription>{notice?.user.name} · {notice?.user.email}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle data-testid="temp-password-dialog-title">{notice?.title}</DialogTitle><DialogDescription>{notice?.user.name} · {notice?.user.email}</DialogDescription></DialogHeader>
         <div className="space-y-3 py-2 text-sm leading-6">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Password sementara</p><p className="mt-1 select-all font-mono text-lg font-bold text-emerald-950" data-testid="temp-password-value">{notice?.temporaryPassword}</p></div>
           <p className="text-muted-foreground">User wajib mengganti password setelah login.</p>

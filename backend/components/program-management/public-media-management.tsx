@@ -4,6 +4,7 @@ import { ImagePlus, Pencil, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { PublicMediaItem } from "@/db/public-media";
+import { SearchEmptyState, SearchField, matchesSearch } from "@/components/search-field";
 
 type MediaForm = {
   mediaType: "banner" | "gallery";
@@ -27,6 +28,11 @@ const blank: MediaForm = {
 
 export default function PublicMediaManagement() {
   const [items, setItems] = useState<PublicMediaItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "banner" | "gallery">("all");
+  // Pencarian client-side (daftar foto admin kecil & sudah dimuat penuh).
+  const visibleItems = items.filter((item) => (typeFilter === "all" || item.mediaType === typeFilter)
+    && matchesSearch(search, [item.title, item.description, item.eventDate, item.imageName]));
   const [form, setForm] = useState<MediaForm>({ ...blank });
   const [image, setImage] = useState<File | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
@@ -240,8 +246,20 @@ export default function PublicMediaManagement() {
             {items.length} foto
           </span>
         </div>
+        {items.length > 0 && (
+          <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_200px]">
+            <SearchField value={search} onChange={setSearch} placeholder="Cari foto (judul, deskripsi, tanggal)…" testId="media-search-input" />
+            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as "all" | "banner" | "gallery")}
+              aria-label="Filter jenis foto" data-testid="media-type-filter" className="h-10 rounded-md border bg-white px-3 text-sm">
+              <option value="all">Semua jenis</option><option value="banner">Banner</option><option value="gallery">Galeri</option>
+            </select>
+          </div>
+        )}
+        {items.length > 0 && !visibleItems.length && (
+          <SearchEmptyState testId="media-search-empty" onClear={() => { setSearch(""); setTypeFilter("all"); }} />
+        )}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <article
               key={item.id}
               className="overflow-hidden rounded-2xl border bg-white shadow-sm"

@@ -94,6 +94,15 @@ export async function saveProgramFlyer(programId: number, file: File) {
   return key;
 }
 
+/** Referensi flyer (tanpa mengambil objek R2) — untuk ETag/304 & cache sebelum fetch storage. */
+export async function getProgramFlyerRef(code: string) {
+  const row = await db().prepare(`SELECT pp.flyer_key AS flyerKey, pp.flyer_type AS flyerType
+    FROM program_publications pp JOIN programs p ON p.id = pp.program_id
+    WHERE LOWER(p.program_code) = LOWER(?) AND pp.is_published = 1 LIMIT 1`).bind(code)
+    .first<{ flyerKey: string | null; flyerType: string | null }>();
+  return row?.flyerKey ? { flyerKey: row.flyerKey, flyerType: row.flyerType } : null;
+}
+
 export async function getProgramFlyer(code: string) {
   const row = await db().prepare(`SELECT pp.flyer_key AS flyerKey, pp.flyer_name AS flyerName, pp.flyer_type AS flyerType
     FROM program_publications pp JOIN programs p ON p.id = pp.program_id

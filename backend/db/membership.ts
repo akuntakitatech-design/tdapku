@@ -1,3 +1,4 @@
+import { likeContains, normalizeSearchParam } from "@/lib/search";
 import { env } from "@/lib/runtime-env";
 import { listTreasuryAccounts } from "@/db/treasury";
 
@@ -235,7 +236,18 @@ export async function getMembershipAdminData() {
     packages: packageRows, classMaterials: options.results.filter((item) => item.type === "class_material" && item.isActive).map((item) => item.label) };
 }
 
-export async function getMembershipRegistrations() {
+export async function getMembershipRegistrations(keyword = "") {
+  // Pencarian server-side (sebelum LIMIT) di seluruh registrasi: kode, nama, email, WhatsApp, TDA Passport, usaha, paket.
+  const q = normalizeSearchParam(keyword);
+  if (q) {
+    const pattern = likeContains(q);
+    const found = await db().prepare(`${registrationSelect}
+      WHERE LOWER(COALESCE(r.registration_code, '')) LIKE ? OR LOWER(COALESCE(r.full_name, '')) LIKE ? OR LOWER(COALESCE(r.email, '')) LIKE ?
+        OR LOWER(COALESCE(r.whatsapp, '')) LIKE ? OR LOWER(COALESCE(r.passport_number, '')) LIKE ? OR LOWER(COALESCE(r.business_name, '')) LIKE ?
+        OR LOWER(COALESCE(r.package_name, '')) LIKE ?
+      ORDER BY r.created_at DESC, r.id DESC LIMIT 500`).bind(pattern, pattern, pattern, pattern, pattern, pattern, pattern).all<MembershipRegistration>();
+    return found.results;
+  }
   const registrations = await db().prepare(`${registrationSelect} ORDER BY r.created_at DESC, r.id DESC LIMIT 500`)
     .all<MembershipRegistration>();
   return registrations.results;

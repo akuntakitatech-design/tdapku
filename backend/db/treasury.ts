@@ -1,3 +1,4 @@
+import { likeContains, normalizeSearchParam } from "@/lib/search";
 import { env } from "@/lib/runtime-env";
 
 export type TreasuryAccount = {
@@ -66,37 +67,8 @@ export async function listTreasuryAccounts() {
   return accountRows();
 }
 
-export async function getTreasuryDashboard() {
-  const accounts = await accountRows();
-  const categories = await listTreasuryCategories();
-  const defaultId = accounts[0]?.id ?? 0;
-  const [balances, totals, mutations, pendingPayments] = await Promise.all([
-    db().prepare(`WITH ledger AS (
-      SELECT COALESCE(treasury_account_id, ?) AS accountId, 'income' AS direction, amount FROM program_incomes
-      UNION ALL SELECT COALESCE(treasury_account_id, ?), 'expense', amount FROM program_expenses
-      UNION ALL SELECT COALESCE(ap.payment_treasury_account_id, e.treasury_account_id, ?), 'income',
-        CASE WHEN ap.payment_received_amount > 0 THEN ap.payment_received_amount ELSE ap.amount_due END
-        FROM attendance_participants ap JOIN attendance_events e ON e.id = ap.event_id
-        WHERE ap.payment_status = 'paid' AND e.program_id IS NULL
-      UNION ALL SELECT COALESCE(treasury_account_id, ?), 'income',
-        CASE WHEN payment_received_amount > 0 THEN payment_received_amount ELSE amount_due END
-        FROM membership_registrations WHERE payment_status = 'paid'
-      UNION ALL SELECT account_id, direction, amount FROM treasury_transactions
-    ) SELECT accountId,
-      COALESCE(SUM(CASE WHEN direction = 'income' THEN amount ELSE 0 END), 0) AS totalIncome,
-      COALESCE(SUM(CASE WHEN direction = 'expense' THEN amount ELSE 0 END), 0) AS totalExpense
-      FROM ledger GROUP BY accountId`).bind(defaultId, defaultId, defaultId, defaultId).all<{ accountId: number; totalIncome: number; totalExpense: number }>(),
-    db().prepare(`SELECT
-      (SELECT COALESCE(SUM(amount), 0) FROM program_incomes) +
-      (SELECT COALESCE(SUM(CASE WHEN ap.payment_received_amount > 0 THEN ap.payment_received_amount ELSE ap.amount_due END), 0)
-        FROM attendance_participants ap JOIN attendance_events e ON e.id = ap.event_id
-        WHERE ap.payment_status = 'paid' AND e.program_id IS NULL) +
-      (SELECT COALESCE(SUM(CASE WHEN payment_received_amount > 0 THEN payment_received_amount ELSE amount_due END), 0)
-        FROM membership_registrations WHERE payment_status = 'paid') +
-      (SELECT COALESCE(SUM(amount), 0) FROM treasury_transactions WHERE direction = 'income' AND transfer_group IS NULL) AS totalIncome,
-      (SELECT COALESCE(SUM(amount), 0) FROM program_expenses) +
-      (SELECT COALESCE(SUM(amount), 0) FROM treasury_transactions WHERE direction = 'expense' AND transfer_group IS NULL) AS totalExpense`).first<{ totalIncome: number; totalExpense: number }>(),
-    db().prepare(`SELECT * FROM (
+/** Gabungan seluruh sumber mutasi Buku Besar (dipakai dashboard & pencarian). 4 parameter: rekening default. */
+const TREASURY_MUTATION_UNION = `
       SELECT 'income-' || i.id AS key, 'program_income' AS sourceType, i.id AS sourceId,
         COALESCE(i.treasury_account_id, ?) AS accountId, 'income' AS direction,
         i.income_date AS transactionDate, i.description, i.source AS category, i.amount,
@@ -131,7 +103,64 @@ export async function getTreasuryDashboard() {
         t.id, t.account_id, t.direction, t.transaction_date, t.description, t.category, t.amount,
         NULL, NULL, COALESCE(u.name, 'Bendahara'), t.transfer_group
       FROM treasury_transactions t LEFT JOIN users u ON u.id = t.created_by_user_id
-    ) ORDER BY transactionDate DESC, sourceId DESC LIMIT 250`).bind(defaultId, defaultId, defaultId, defaultId).all<TreasuryMutation>(),
+`;
+
+/**
+ * Pencarian mutasi server-side di SELURUH mutasi (bukan hanya 250 terbaru yang tampil di dashboard).
+ * Field: keterangan (termasuk kode registrasi/nama peserta), kategori, kode & judul program, pencatat, nama rekening.
+ */
+export async function searchTreasuryMutations(keyword: string, limit = 250) {
+  const q = normalizeSearchParam(keyword);
+  if (!q) return [] as TreasuryMutation[];
+  const accounts = await accountRows();
+  const defaultId = accounts[0]?.id ?? 0;
+  const pattern = likeContains(q);
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 250, 1), 500);
+  const result = await db().prepare(`SELECT x.* FROM (
+${TREASURY_MUTATION_UNION}
+    ) x LEFT JOIN treasury_accounts ta ON ta.id = x.accountId
+    WHERE LOWER(COALESCE(x.description, '')) LIKE ? OR LOWER(COALESCE(x.category, '')) LIKE ?
+      OR LOWER(COALESCE(x.programCode, '')) LIKE ? OR LOWER(COALESCE(x.programTitle, '')) LIKE ?
+      OR LOWER(COALESCE(x.createdByName, '')) LIKE ? OR LOWER(COALESCE(ta.name, '')) LIKE ?
+    ORDER BY x.transactionDate DESC, x.sourceId DESC LIMIT ?`)
+    .bind(defaultId, defaultId, defaultId, defaultId, pattern, pattern, pattern, pattern, pattern, pattern, safeLimit)
+    .all<TreasuryMutation>();
+  return result.results;
+}
+
+export async function getTreasuryDashboard() {
+  const accounts = await accountRows();
+  const categories = await listTreasuryCategories();
+  const defaultId = accounts[0]?.id ?? 0;
+  const [balances, totals, mutations, pendingPayments] = await Promise.all([
+    db().prepare(`WITH ledger AS (
+      SELECT COALESCE(treasury_account_id, ?) AS accountId, 'income' AS direction, amount FROM program_incomes
+      UNION ALL SELECT COALESCE(treasury_account_id, ?), 'expense', amount FROM program_expenses
+      UNION ALL SELECT COALESCE(ap.payment_treasury_account_id, e.treasury_account_id, ?), 'income',
+        CASE WHEN ap.payment_received_amount > 0 THEN ap.payment_received_amount ELSE ap.amount_due END
+        FROM attendance_participants ap JOIN attendance_events e ON e.id = ap.event_id
+        WHERE ap.payment_status = 'paid' AND e.program_id IS NULL
+      UNION ALL SELECT COALESCE(treasury_account_id, ?), 'income',
+        CASE WHEN payment_received_amount > 0 THEN payment_received_amount ELSE amount_due END
+        FROM membership_registrations WHERE payment_status = 'paid'
+      UNION ALL SELECT account_id, direction, amount FROM treasury_transactions
+    ) SELECT accountId,
+      COALESCE(SUM(CASE WHEN direction = 'income' THEN amount ELSE 0 END), 0) AS totalIncome,
+      COALESCE(SUM(CASE WHEN direction = 'expense' THEN amount ELSE 0 END), 0) AS totalExpense
+      FROM ledger GROUP BY accountId`).bind(defaultId, defaultId, defaultId, defaultId).all<{ accountId: number; totalIncome: number; totalExpense: number }>(),
+    db().prepare(`SELECT
+      (SELECT COALESCE(SUM(amount), 0) FROM program_incomes) +
+      (SELECT COALESCE(SUM(CASE WHEN ap.payment_received_amount > 0 THEN ap.payment_received_amount ELSE ap.amount_due END), 0)
+        FROM attendance_participants ap JOIN attendance_events e ON e.id = ap.event_id
+        WHERE ap.payment_status = 'paid' AND e.program_id IS NULL) +
+      (SELECT COALESCE(SUM(CASE WHEN payment_received_amount > 0 THEN payment_received_amount ELSE amount_due END), 0)
+        FROM membership_registrations WHERE payment_status = 'paid') +
+      (SELECT COALESCE(SUM(amount), 0) FROM treasury_transactions WHERE direction = 'income' AND transfer_group IS NULL) AS totalIncome,
+      (SELECT COALESCE(SUM(amount), 0) FROM program_expenses) +
+      (SELECT COALESCE(SUM(amount), 0) FROM treasury_transactions WHERE direction = 'expense' AND transfer_group IS NULL) AS totalExpense`).first<{ totalIncome: number; totalExpense: number }>(),
+    db().prepare(`SELECT * FROM (
+${TREASURY_MUTATION_UNION}
+    ) x ORDER BY transactionDate DESC, sourceId DESC LIMIT 250`).bind(defaultId, defaultId, defaultId, defaultId).all<TreasuryMutation>(),
     db().prepare(`SELECT ap.id AS participantId, ap.name AS participantName, e.name AS eventName,
       CASE WHEN ap.payment_received_amount > 0 THEN ap.payment_received_amount ELSE ap.amount_due END AS amount,
       ap.payment_method AS method, COALESCE(ap.payment_treasury_account_id, e.treasury_account_id, ?) AS accountId,

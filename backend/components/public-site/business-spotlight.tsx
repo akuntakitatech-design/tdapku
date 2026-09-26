@@ -88,6 +88,8 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
               <img
                 src={thumbnail(hero.videoUrl)}
                 alt={hero.brand}
+                loading="lazy"
+                decoding="async"
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
               />
 
@@ -153,6 +155,8 @@ export function BusinessSpotlight({items}:{items:Spotlight[]}) {
               <img
                 src={thumbnail(item.videoUrl)}
                 alt={item.brand}
+                loading="lazy"
+                decoding="async"
                 className="h-full w-full object-cover"
               />
               <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow">

@@ -131,6 +131,18 @@ export async function deletePublicMedia(id: number) {
   await deleteStorageObjectIfUnreferenced(row?.imageKey, (key) => bucket().delete(key));
 }
 
+/** Referensi gambar media (tanpa mengambil objek R2) — untuk ETag/304 & cache sebelum fetch storage. */
+export async function getPublicMediaImageRef(id: number, activeOnly: boolean) {
+  const row = await db()
+    .prepare(
+      `SELECT image_key AS imageKey, image_type AS imageType
+    FROM public_media WHERE id = ?${activeOnly ? " AND is_active = 1" : ""} LIMIT 1`,
+    )
+    .bind(id)
+    .first<{ imageKey: string | null; imageType: string | null }>();
+  return row?.imageKey ? { imageKey: row.imageKey, imageType: row.imageType } : null;
+}
+
 export async function getPublicMediaImage(id: number, activeOnly: boolean) {
   const row = await db()
     .prepare(
