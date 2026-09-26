@@ -22,8 +22,9 @@ export async function POST(request: Request) {
     const input = parseProfileInput(await request.json().catch(() => ({})));
     const validationError = await validateProfileInput(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const user = await createAccount(input, await hashDefaultTempPassword());
-    return Response.json({ user, temporaryPassword: defaultTempPassword() }, { status: 201 });
+    // Email akun yang pernah dihapus (soft delete) → akun lama diaktifkan kembali (ID & histori tetap), bukan baris baru.
+    const { user, reactivated } = await createAccount(input, await hashDefaultTempPassword());
+    return Response.json({ user, reactivated, temporaryPassword: defaultTempPassword() }, { status: reactivated ? 200 : 201 });
   } catch (reason) {
     if (reason instanceof AccountError || reason instanceof VpsAuthError) return accountErrorResponse(reason);
     return accessErrorResponse(reason, "Pengurus belum dapat ditambahkan.");
