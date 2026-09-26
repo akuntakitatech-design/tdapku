@@ -5,8 +5,10 @@ import { BusinessSpotlight } from "@/components/public-site/business-spotlight";
 import { HighlightMarquee } from "@/components/public-site/highlight-marquee";
 import { IMPACT_FIELDS } from "@/lib/public-site-content";
 import NavigationManagement from "@/components/program-management/navigation-management";
+import FooterManagement from "@/components/program-management/footer-management";
+import LogoManagement from "@/components/program-management/logo-management";
 
-type Tab = "settings" | "homepage" | "submissions" | "navigation" | "preview";
+type Tab = "settings" | "homepage" | "submissions" | "navigation" | "footer" | "preview";
 
 type CmsSection = {
   id: number;
@@ -512,10 +514,12 @@ export default function PublicSiteManagement() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "settings", label: "Pengaturan" },
+    // Urutan area: Homepage → Navigasi → Footer (area mandiri) → konten member → Pengaturan Website → Preview.
     { id: "homepage", label: "Homepage" },
-    { id: "submissions", label: "Submission Member" },
     { id: "navigation", label: "Navigasi" },
+    { id: "footer", label: "Footer" },
+    { id: "submissions", label: "Submission Member" },
+    { id: "settings", label: "Pengaturan Website" },
     { id: "preview", label: "Preview" },
   ];
 
@@ -537,6 +541,7 @@ export default function PublicSiteManagement() {
         {tabs.map((item) => (
           <button
             key={item.id}
+            data-testid={`public-site-tab-${item.id}`}
             onClick={() => setTab(item.id)}
             className={`rounded-xl px-4 py-2 text-sm font-semibold ${
               tab === item.id
@@ -558,6 +563,9 @@ export default function PublicSiteManagement() {
           Memuat data website...
         </div>
       ) : tab === "settings" ? (
+        <div className="space-y-6">
+        {/* Logo Utama + Logo Header (Draft → Preview → Publish). Form Pengaturan Umum di bawah tidak berubah. */}
+        <LogoManagement />
         <div className="rounded-2xl border bg-white p-6">
           <div>
             <h2 className="text-lg font-bold">Pengaturan Umum</h2>
@@ -697,6 +705,7 @@ export default function PublicSiteManagement() {
               {saving ? "Menyimpan..." : "Simpan Pengaturan"}
             </button>
           </div>
+        </div>
         </div>
       ) : tab === "homepage" ? (
         <div className="space-y-4">
@@ -1170,6 +1179,8 @@ export default function PublicSiteManagement() {
         // Website 02A: editor navigasi (public_navigation_items). Upload foto section yang dulu salah tempat
         // di sini dihapus dari tab ini saja — upload foto section tetap tersedia di editor Homepage.
         <NavigationManagement siteName={data.settings?.siteName} />
+      ) : tab === "footer" ? (
+        <FooterManagement />
       ) : (
         <div className="rounded-2xl border bg-white p-6">
           <h2 className="text-lg font-bold">Preview Homepage</h2>

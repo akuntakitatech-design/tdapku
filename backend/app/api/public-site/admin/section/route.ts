@@ -20,6 +20,13 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Footer dikelola lewat editor Footer Builder (/api/public-site/admin/footer) yang memvalidasi konfigurasi.
+    const { getPublicSiteSectionContent: readSection } = await import("@/db/public-site");
+    const chromeKey = (await readSection(id))?.sectionKey;
+    if (chromeKey === "footer" || chromeKey === "header") {
+      return Response.json({ error: chromeKey === "footer" ? "Footer dikelola melalui menu Footer." : "Header dikelola melalui Pengaturan Website → Logo." }, { status: 400 });
+    }
+
     await updatePublicSiteSection(
       id,
       {
@@ -154,6 +161,12 @@ export async function POST(request: Request) {
 
     if (file.size > 10 * 1024 * 1024) {
       return Response.json({ error: "Maksimal 10 MB." }, { status: 400 });
+    }
+
+    // Logo khusus header/footer wajib lewat /api/public-site/admin/logo (optimasi ukuran + mode inherit/custom).
+    const target = await getPublicSiteSectionContent(id);
+    if (target?.sectionKey === "footer" || target?.sectionKey === "header") {
+      return Response.json({ error: "Logo header/footer diunggah melalui pengaturan Logo." }, { status: 400 });
     }
 
     const previous = await getPublicSiteSectionImage(id);

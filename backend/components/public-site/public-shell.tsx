@@ -11,9 +11,9 @@ export async function PublicShell({ current, chrome, children }: { current: stri
   const data = chrome ?? (await getPublicChrome());
   return (
     <div className="tda-public flex min-h-screen flex-col" data-testid="public-shell">
-      <PublicHeader siteName={data.settings.siteName} navigation={data.navigation} current={current} />
+      <PublicHeader siteName={data.settings.siteName} navigation={data.navigation} current={current} logo={data.headerLogo} />
       <div className="flex-1">{children}</div>
-      <PublicFooter settings={data.settings} navigation={data.navigation} />
+      <PublicFooter footer={data.footer} />
     </div>
   );
 }

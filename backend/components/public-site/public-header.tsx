@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import type { PublicCta, PublicNavigation } from "@/db/public-homepage";
+import { BrandLogo } from "@/components/public-site/brand-logo";
+import { logoSources, type LogoSize, type ResolvedLogo } from "@/lib/public-logo";
+
+/** Preset ukuran logo header (tanpa CSS bebas). Rasio ±2,2 : 1 mengikuti logo TDA. */
+const LOGO_SIZE: Record<LogoSize, { className: string; width: number; height: number }> = {
+  sm: { className: "h-9 w-20", width: 80, height: 36 },
+  md: { className: "h-11 w-24", width: 96, height: 44 },
+  lg: { className: "h-14 w-32", width: 128, height: 56 },
+};
 
 function slug(label: string) {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "link";
@@ -40,9 +49,13 @@ export type PublicHeaderMode = "responsive" | "desktop" | "mobile";
  * `mode`/`idPrefix` hanya untuk Preview editor CMS (Website 02A): memaksa tampilan desktop/mobile di dalam
  * kotak preview, tanpa sticky, dengan data-testid berprefix agar tidak bentrok. Default = perilaku publik.
  */
-export function PublicHeader({ siteName, navigation, current, mode = "responsive", idPrefix = "" }: {
+export function PublicHeader({ siteName, navigation, current, mode = "responsive", idPrefix = "", logo }: {
   siteName: string; navigation: PublicNavigation; current: string; mode?: PublicHeaderMode; idPrefix?: string;
+  /** Logo header hasil resolusi (khusus → Logo Utama → statis). Kosong = logo statis (pemanggil lama). */
+  logo?: ResolvedLogo;
 }) {
+  const brand = logo ?? { sources: logoSources(null, null), alt: `Logo ${siteName || "TDA Pekanbaru"}`, size: "md" as LogoSize };
+  const logoSize = LOGO_SIZE[brand.size] ?? LOGO_SIZE.md;
   const cta = navigation.headerCta;
   const preview = mode !== "responsive";
   const desktopNavClass = mode === "desktop" ? "flex" : mode === "mobile" ? "hidden" : "hidden md:flex";
@@ -52,7 +65,9 @@ export function PublicHeader({ siteName, navigation, current, mode = "responsive
       className={`${preview ? "relative" : "sticky top-0 z-[var(--tda-z-header)]"} border-b border-[color:var(--tda-border)] bg-white/[0.97] backdrop-blur`}>
       <div className={`${preview ? "w-full px-5" : "tda-container"} flex h-[72px] items-center justify-between gap-4`}>
         <Link href="/" data-testid={`${idPrefix}header-home-link`} aria-current={current === "/" ? "page" : undefined} className="tda-focus flex min-w-0 items-center gap-3">
-          <img src="/tda-pekanbaru.png" alt="Logo TDA Pekanbaru" className="h-11 w-24 shrink-0 object-contain" />
+          {/* Above-the-fold → tidak lazy (priority). */}
+          <BrandLogo sources={brand.sources} alt={brand.alt} width={logoSize.width} height={logoSize.height} priority={!preview}
+            className={`${logoSize.className} shrink-0 object-contain`} testId={`${idPrefix}header-logo`} />
           <span className={`${mode === "mobile" ? "hidden" : "hidden sm:block"} min-w-0 border-l border-[color:var(--tda-border)] pl-3`}>
             <span className={`${mode === "desktop" ? "block" : "hidden lg:block"} text-[11px] font-bold uppercase tracking-[0.18em] text-tda-indigo`}>Komunitas Pengusaha</span>
             <span data-testid={`${idPrefix}header-site-name`} className="block truncate text-[15px] font-bold text-tda-navy">{siteName}</span>

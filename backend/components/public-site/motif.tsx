@@ -75,3 +75,68 @@ export function MotifTile({ className, strong, testId }: MotifProps) {
     />
   );
 }
+
+/*
+ * SELEMBAYUNG — ornamen puncak atap rumah Melayu Riau (distilisasi monoline modern).
+ * Anatomi yang dipertahankan: (1) dua papan lisplang atap yang BERSILANG di puncak perabung lalu menjulang
+ * sebagai "tanduk" yang melengkung keluar dan berujung ukel (sulur melingkar); (2) papan lisplang ganda (garis
+ * sejajar) sebagai bidang atap; (3) daun/kelopak kecil di sisi luar tanduk; (4) tunas di titik silang;
+ * (5) "sayap layang-layang" yang melentik di kedua ujung bawah lisplang.
+ * Dipakai sebagai AKSEN (opacity 5–10%), bukan latar penuh. Simetris: setengah kiri digambar, kanan dicerminkan.
+ */
+const SELEMBAYUNG_HALF = [
+  // papan lisplang luar: ujung bawah kiri → bersilang di puncak (100,44) → tanduk kanan menjulang & melengkung keluar
+  "M22 110 L100 44 L121 26 C128 20 134 13 139 9 C145 5 152 8 151 15 C150 21 142 22 141 16 C140 12 145 11 146 14",
+  // papan lisplang dalam (garis sejajar = papan ganda)
+  "M36 110 L100 56",
+  // kelopak daun di sisi luar tanduk
+  "M127 30 C132 29 137 25 138 19 C132 20 128 24 127 30 Z",
+  // sayap layang-layang: ujung bawah lisplang melentik ke atas dengan ukel kecil
+  "M22 110 C15 110 9 107 7 101 C5 96 9 92 13 94 C16 96 15 100 12 100",
+  // pengikat antar papan di kaki atap
+  "M22 110 H36",
+];
+
+export function Selembayung({ className, testId, opacity, strokeWidth = 1.6 }: { className?: string; testId?: string; opacity?: number; strokeWidth?: number }) {
+  return (
+    <svg viewBox="0 0 200 118" fill="none" aria-hidden="true" focusable="false" data-testid={testId}
+      className={["pointer-events-none select-none", className || ""].join(" ")} style={opacity === undefined ? undefined : { opacity }}>
+      <g stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+        {SELEMBAYUNG_HALF.map((d) => <path key={`l-${d}`} d={d} />)}
+        <g transform="matrix(-1 0 0 1 200 0)">{SELEMBAYUNG_HALF.map((d) => <path key={`r-${d}`} d={d} />)}</g>
+        {/* tunas di titik silang perabung */}
+        <path d="M100 38 C96.5 33 96.5 27 100 21 C103.5 27 103.5 33 100 38 Z" />
+        <path d="M100 44 V38" />
+      </g>
+    </svg>
+  );
+}
+
+/** Pucuk Rebung tunggal (versi aksen dengan opacity eksplisit) — PENDAMPING Selembayung. */
+export function PucukRebungAccent({ className, testId, opacity }: { className?: string; testId?: string; opacity?: number }) {
+  return (
+    <svg viewBox="0 0 120 150" fill="none" aria-hidden="true" focusable="false" data-testid={testId}
+      className={["pointer-events-none select-none", className || ""].join(" ")} style={opacity === undefined ? undefined : { opacity }}>
+      <g stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+        <path d="M60 6 L100 144 H20 Z" /><path d="M60 40 L82 120 H38 Z" /><path d="M60 74 L70 110 H50 Z" />
+        <path d="M60 6 V144" /><path d="M20 144 L4 144 M100 144 L116 144" />
+      </g>
+    </svg>
+  );
+}
+
+/** Pita Pucuk Rebung (deret tunas kecil) — divider/border aksen, pendamping Selembayung. */
+export function PucukRebungBand({ className, testId, opacity }: { className?: string; testId?: string; opacity?: number }) {
+  return (
+    <div aria-hidden="true" data-testid={testId} className={["pointer-events-none h-5 w-full select-none", className || ""].join(" ")}
+      style={{
+        opacity,
+        backgroundImage:
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20' viewBox='0 0 40 20' fill='none' stroke='%232D3FB8' stroke-width='1.4' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M10 2 L16 18 H4 Z'/%3E%3Cpath d='M10 9 L12.5 16 H7.5 Z'/%3E%3Cpath d='M20 18 H40'/%3E%3Ccircle cx='30' cy='12' r='1.2'/%3E%3C/svg%3E\")",
+        backgroundRepeat: "repeat-x",
+        backgroundPosition: "center",
+        backgroundSize: "40px 20px",
+      }}
+    />
+  );
+}
