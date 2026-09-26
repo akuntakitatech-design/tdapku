@@ -9,7 +9,7 @@ function SafeImage({ src, available, alt, className, fallback, testId }: {
 }) {
   const [failed, setFailed] = useState(false);
   if (available === false || failed) return <>{fallback}</>;
-  return <img src={src} alt={alt} className={className} loading="lazy" data-testid={testId} onError={() => setFailed(true)} />;
+  return <img src={src} alt={alt} className={className} loading="lazy" decoding="async" data-testid={testId} onError={() => setFailed(true)} />;
 }
 
 type MarqueeItem = {
