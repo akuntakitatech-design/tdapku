@@ -7,6 +7,9 @@ import { IMPACT_FIELDS } from "@/lib/public-site-content";
 import NavigationManagement from "@/components/program-management/navigation-management";
 import FooterManagement from "@/components/program-management/footer-management";
 import LogoManagement from "@/components/program-management/logo-management";
+import { FaviconManagement } from "@/components/program-management/favicon-management";
+import { MemberFormShare } from "@/components/program-management/member-form-share";
+import { SearchEmptyState, SearchField, matchesSearch } from "@/components/search-field";
 
 type Tab = "settings" | "homepage" | "submissions" | "navigation" | "footer" | "preview";
 
@@ -79,6 +82,11 @@ export default function PublicSiteManagement() {
   const [message, setMessage] = useState("");
   const [editingSection, setEditingSection] = useState<CmsSection | null>(null);
   const [submissions,setSubmissions]=useState<any[]>([]);
+  const [submissionSearch, setSubmissionSearch] = useState("");
+  const [submissionStatus, setSubmissionStatus] = useState("all");
+  // Direktori Usaha & Testimoni (submission member): pencarian client-side atas daftar yang sudah dimuat.
+  const visibleSubmissions = submissions.filter((item)=>(submissionStatus==="all" || item.reviewStatus===submissionStatus)
+    && matchesSearch(submissionSearch, [item.memberName, item.businessName, item.businessCategory, item.businessLocation, item.positionTitle, item.testimonial, item.tdaPassport]));
   const [publishedBusinesses,setPublishedBusinesses]=useState<any[]>([]);
   const [publishedTestimonials,setPublishedTestimonials]=useState<any[]>([]);
   const [selectedSubmission,setSelectedSubmission]=useState<any|null>(null);
@@ -518,7 +526,7 @@ export default function PublicSiteManagement() {
     { id: "homepage", label: "Homepage" },
     { id: "navigation", label: "Navigasi" },
     { id: "footer", label: "Footer" },
-    { id: "submissions", label: "Submission Member" },
+    { id: "submissions", label: "Profil Usaha & Testimoni" },
     { id: "settings", label: "Pengaturan Website" },
     { id: "preview", label: "Preview" },
   ];
@@ -566,6 +574,8 @@ export default function PublicSiteManagement() {
         <div className="space-y-6">
         {/* Logo Utama + Logo Header (Draft → Preview → Publish). Form Pengaturan Umum di bawah tidak berubah. */}
         <LogoManagement />
+        {/* Identitas Website: favicon (public_site_settings.favicon_key) — terpisah dari logo Header/Footer. */}
+        <FaviconManagement />
         <div className="rounded-2xl border bg-white p-6">
           <div>
             <h2 className="text-lg font-bold">Pengaturan Umum</h2>
@@ -1065,13 +1075,29 @@ export default function PublicSiteManagement() {
         </div>
       ) : tab === "submissions" ? (
         <div className="rounded-2xl border bg-white p-6">
-          <h2 className="text-lg font-bold">Submission Member</h2>
+          <h2 className="text-lg font-bold">Profil Usaha & Testimoni</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Data Profil Usaha & Testimoni yang menunggu review admin.
           </p>
+          {/* Akses cepat form publik existing /form/member (bukan pendaftaran member baru). */}
+          <MemberFormShare />
 
+          {submissions.length > 0 && (
+            <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_200px]">
+              <SearchField value={submissionSearch} onChange={setSubmissionSearch} testId="submission-search-input"
+                placeholder="Cari nama member, usaha, bidang, atau isi testimoni…" />
+              <select value={submissionStatus} onChange={(event)=>setSubmissionStatus(event.target.value)} aria-label="Filter status review"
+                data-testid="submission-status-filter" className="h-10 rounded-md border bg-white px-3 text-sm">
+                <option value="all">Semua status</option><option value="pending">Menunggu Review</option>
+                <option value="published">Dipublikasikan</option><option value="rejected">Ditolak</option>
+              </select>
+            </div>
+          )}
           <div className="mt-6 space-y-3">
-            {submissions.length ? submissions.map((item:any)=>(
+            {submissions.length > 0 && !visibleSubmissions.length && (
+              <SearchEmptyState testId="submission-search-empty" onClear={()=>{ setSubmissionSearch(""); setSubmissionStatus("all"); }} />
+            )}
+            {submissions.length ? visibleSubmissions.map((item:any)=>(
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4">
                 <div>
                   <p className="font-bold">{item.memberName}</p>
