@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { ArrowRight, BookOpenCheck, BriefcaseBusiness, HandHeart, MapPin, Network, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight, MapPin } from "lucide-react";
 import { PublicShell } from "@/components/public-site/public-shell";
+import { PublicPageIntro } from "@/components/public-site/public-page-intro";
 
 // Header/Footer global membaca CMS saat request (sama seperti homepage) — bukan snapshot saat build.
 export const dynamic = "force-dynamic";
@@ -11,15 +13,87 @@ export const metadata: Metadata = {
   openGraph: { title: "Tentang TDA Pekanbaru 9.0", description: "Ekosistem pengusaha Pekanbaru untuk belajar, bertumbuh, dan berkolaborasi.", type: "website", locale: "id_ID", images: [] },
 };
 
+/*
+ * /tentang — final design system (Deep Navy + Instrument Serif/Manrope). Konten teks sama dengan versi sebelumnya;
+ * palet hijau legacy + kartu-kartu lama diganti layout editorial. Presentasi saja (tanpa data/API).
+ */
 const divisions = ["Edukasi", "TDA Peduli", "Marcomm", "Gen TDA", "Kerjasama Eksternal", "TDA Fun", "Pelayanan Anggota & Data", "TDA Perempuan", "TDA Event"];
+const values = [
+  { title: "Terhubung", text: "Memperluas relasi lintas bidang usaha dan bertemu partner yang tepat." },
+  { title: "Terus Belajar", text: "Mengikuti kelas, mentoring, sharing, dan program pengembangan bisnis." },
+  { title: "Berkolaborasi", text: "Membuka peluang kerja sama, referral, dan pertumbuhan bersama anggota." },
+];
+const MAPS_URL = "https://www.google.com/maps/search/?api=1&query=Gedung+Menara+Poltekkes+Kemenkes+Riau+Jl.+Melur+No.+26+Pekanbaru";
 
 export default async function AboutPage() {
-  return <PublicShell current="/tentang"><main className="bg-[#f3f7f3] text-slate-950" data-testid="public-about-page">
-    <section className="overflow-hidden bg-[#0d2f20] text-white"><div className="relative mx-auto max-w-7xl px-5 pb-16 pt-12 sm:pb-24 sm:pt-20"><div className="absolute -right-20 top-0 size-72 rounded-full bg-emerald-400/10 blur-3xl"/><div className="relative max-w-4xl"><p className="text-sm font-bold uppercase tracking-[.18em] text-emerald-300">Tentang TDA Pekanbaru</p><h1 className="mt-4 text-4xl font-black leading-tight sm:text-6xl">Rumah bertumbuh bagi pengusaha Pekanbaru.</h1><p className="mt-6 max-w-3xl text-lg leading-8 text-emerald-100">Tangan Di Atas (TDA) Pekanbaru adalah komunitas pengusaha yang menjadi ruang belajar, membangun relasi, berbagi pengalaman, dan membuka peluang kolaborasi bisnis.</p></div></div></section>
-    <section className="mx-auto max-w-7xl px-5 py-12 sm:py-16"><div className="grid gap-5 md:grid-cols-3"><Value icon={Network} title="Terhubung" text="Memperluas relasi lintas bidang usaha dan bertemu partner yang tepat."/><Value icon={BookOpenCheck} title="Terus Belajar" text="Mengikuti kelas, mentoring, sharing, dan program pengembangan bisnis."/><Value icon={BriefcaseBusiness} title="Berkolaborasi" text="Membuka peluang kerja sama, referral, dan pertumbuhan bersama anggota."/></div></section>
-    <section className="border-y bg-white"><div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 lg:grid-cols-[.8fr_1.2fr] lg:items-start sm:py-16"><div><p className="text-sm font-bold uppercase tracking-[.16em] text-emerald-700">TDA Pekanbaru 9.0</p><h2 className="mt-3 text-3xl font-black">Let&apos;s 9.0 Together</h2><p className="mt-4 leading-8 text-slate-600">Kepengurusan 9.0 membawa semangat <strong>#RiangGembira</strong>: bertumbuh dengan riang, berdampak dengan gembira. Program dijalankan lintas divisi agar kebutuhan belajar, jejaring, sosial, dan kolaborasi anggota dapat bergerak bersama.</p><a href="/program" className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-800 px-5 font-bold text-white">Lihat Program Kami<ArrowRight className="size-5"/></a></div><div><h3 className="text-xl font-bold">Divisi Penggerak</h3><div className="mt-5 grid gap-3 sm:grid-cols-2">{divisions.map((division) => <div key={division} className="flex items-center gap-3 rounded-2xl border bg-[#f7faf7] p-4"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-800"><UsersRound className="size-4"/></span><span className="font-semibold">{division}</span></div>)}</div></div></div></section>
-    <section className="mx-auto max-w-7xl px-5 py-12 sm:py-16"><div className="grid overflow-hidden rounded-3xl bg-emerald-800 text-white lg:grid-cols-[1fr_.8fr]"><div className="p-7 sm:p-10"><div className="flex items-center gap-3"><MapPin className="size-7 text-emerald-300"/><h2 className="text-2xl font-black">Sekretariat TDA Pekanbaru</h2></div><address className="mt-5 not-italic leading-8 text-emerald-100">Gedung Menara Poltekkes Kemenkes Riau, Lantai 8<br/>Jl. Melur No. 26, Padang Bulan, Senapelan<br/>Kota Pekanbaru, Riau 28156</address><a href="https://www.google.com/maps/search/?api=1&query=Gedung+Menara+Poltekkes+Kemenkes+Riau+Jl.+Melur+No.+26+Pekanbaru" target="_blank" rel="noreferrer" className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-xl bg-white px-5 font-bold text-emerald-900">Buka Google Maps<ArrowRight className="size-4"/></a></div><div className="flex flex-col justify-center border-t border-white/10 bg-[#0d2f20] p-7 sm:p-10 lg:border-l lg:border-t-0"><HandHeart className="size-9 text-emerald-300"/><h2 className="mt-5 text-2xl font-black">Mari tumbuh bersama.</h2><p className="mt-3 leading-7 text-emerald-100">Bergabung dalam ekosistem TDA Pekanbaru dan temukan ruang belajar serta kolaborasi untuk bisnis Anda.</p><a href="/member" className="mt-6 inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-400 px-5 font-bold text-emerald-950">Daftar Member & Kelas Reguler</a></div></div></section>
-  </main></PublicShell>;
-}
+  return (
+    <PublicShell current="/tentang">
+      <main className="bg-white text-tda-ink" data-testid="public-about-page">
+        <PublicPageIntro testId="about-intro" eyebrow="Tentang TDA Pekanbaru" title="Rumah bertumbuh bagi pengusaha Pekanbaru."
+          lead="Tangan Di Atas (TDA) Pekanbaru adalah komunitas pengusaha yang menjadi ruang belajar, membangun relasi, berbagi pengalaman, dan membuka peluang kolaborasi bisnis." />
 
-function Value({ icon: Icon, title, text }: { icon: typeof Network; title: string; text: string }) { return <article className="rounded-3xl border bg-white p-6 shadow-sm"><span className="grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><Icon className="size-6"/></span><h2 className="mt-5 text-xl font-bold">{title}</h2><p className="mt-2 leading-7 text-slate-600">{text}</p></article>; }
+        {/* Nilai komunitas — daftar editorial bernomor (bukan kartu). */}
+        <section className="tda-section" data-testid="about-values">
+          <div className="tda-container">
+            <p className="tda-kicker">Semangat kami</p>
+            <div className="mt-10 grid border-t tda-hairline md:grid-cols-3">
+              {values.map((value, index) => (
+                <article key={value.title} data-testid={`about-value-${index}`}
+                  className="border-b tda-hairline py-8 md:border-b-0 md:border-r md:px-8 md:py-10 md:first:pl-0 md:last:border-r-0">
+                  <p className="text-sm font-semibold tabular-nums text-tda-indigo">0{index + 1}</p>
+                  <h2 className="tda-display mt-4 text-[32px] leading-[1.1] text-tda-navy">{value.title}</h2>
+                  <p className="mt-3 max-w-sm leading-7 text-tda-muted">{value.text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Kepengurusan 9.0 + divisi penggerak */}
+        <section className="tda-section bg-tda-bg-soft" data-testid="about-nine">
+          <div className="tda-container grid gap-12 lg:grid-cols-[1fr_1fr] lg:items-center">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--tda-radius-lg)] bg-tda-navy">
+              {/* eslint-disable-next-line @next/next/no-img-element -- aset statis WebP responsif, container ber-rasio tetap */}
+              <img src="/hero/tda-hero-2-960.webp" srcSet="/hero/tda-hero-2-960.webp 960w, /hero/tda-hero-2-1920.webp 1920w"
+                sizes="(min-width: 1024px) 600px, 100vw" alt="Kegiatan TDA Pekanbaru 9.0" loading="lazy" decoding="async"
+                className="size-full object-cover" data-testid="about-nine-image" />
+            </div>
+            <div>
+              <p className="tda-kicker">TDA Pekanbaru 9.0</p>
+              <h2 className="tda-h2 mt-4 text-tda-navy">Let&apos;s 9.0 Together</h2>
+              <p className="mt-5 leading-8 text-tda-muted">
+                Kepengurusan 9.0 membawa semangat <strong className="font-semibold text-tda-navy">#RiangGembira</strong>: bertumbuh dengan riang, berdampak dengan gembira. Program dijalankan lintas divisi agar kebutuhan belajar, jejaring, sosial, dan kolaborasi anggota dapat bergerak bersama.
+              </p>
+              <h3 className="mt-10 text-sm font-bold uppercase tracking-[0.16em] text-tda-navy">Divisi Penggerak</h3>
+              <ul className="mt-4 flex flex-wrap gap-2" data-testid="about-divisions">
+                {divisions.map((division) => (
+                  <li key={division} className="rounded-full border border-[color:var(--tda-border-strong)] bg-white px-4 py-2 text-sm font-semibold text-tda-navy">{division}</li>
+                ))}
+              </ul>
+              <Link href="/program" data-testid="about-programs-link" className="tda-btn tda-btn-primary mt-10">Lihat Program Kami<ArrowRight className="size-4" /></Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Sekretariat + ajakan bergabung */}
+        <section className="tda-section" data-testid="about-contact">
+          <div className="tda-container">
+            <div className="grid overflow-hidden rounded-[var(--tda-radius-lg)] bg-tda-navy text-white lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="p-8 sm:p-12">
+                <p className="tda-kicker tda-kicker-dark"><MapPin className="size-4" />Sekretariat</p>
+                <h2 className="tda-display mt-5 text-[34px] leading-[1.1] md:text-[40px]">Sekretariat TDA Pekanbaru</h2>
+                <address className="mt-5 not-italic leading-8 text-[color:var(--tda-on-dark-muted)]">Gedung Menara Poltekkes Kemenkes Riau, Lantai 8<br />Jl. Melur No. 26, Padang Bulan, Senapelan<br />Kota Pekanbaru, Riau 28156</address>
+                <a href={MAPS_URL} target="_blank" rel="noopener noreferrer" data-testid="about-maps-link" className="tda-btn tda-btn-ghost-dark mt-8">Buka Google Maps<ArrowUpRight className="size-4" /></a>
+              </div>
+              <div className="flex flex-col justify-center border-t border-white/10 bg-white/[0.04] p-8 sm:p-12 lg:border-l lg:border-t-0">
+                <h2 className="tda-display text-[34px] leading-[1.1] md:text-[40px]">Mari tumbuh bersama.</h2>
+                <p className="mt-4 leading-7 text-[color:var(--tda-on-dark-muted)]">Bergabung dalam ekosistem TDA Pekanbaru dan temukan ruang belajar serta kolaborasi untuk bisnis Anda.</p>
+                <Link href="/member" data-testid="about-member-link" className="tda-btn tda-btn-light mt-8 self-start">Daftar Member &amp; Kelas Reguler<ArrowRight className="size-4" /></Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </PublicShell>
+  );
+}
