@@ -32,10 +32,10 @@ export const FALLBACK_HEADER_NAV = [
 ] as const;
 
 /**
- * CTA header global (Website 02, keputusan user): "Gabung TDA" → /form/member.
- * Dipakai HANYA karena belum ada field CTA header di public_site_settings / public_navigation_items.
+ * CTA header FALLBACK (safety) bila CTA belum diatur dari backend (Website Publik → Navigasi → CTA Header).
+ * /member = pendaftaran Member Baru & Kelas Reguler. (/form/member = Profil Usaha & Testimoni, bukan pendaftaran.)
  */
-export const FALLBACK_HEADER_CTA = { label: "Gabung TDA", href: "/form/member" } as const;
+export const FALLBACK_HEADER_CTA = { label: "Gabung TDA", href: "/member" } as const;
 
 export const FALLBACK_HERO = {
   eyebrow: "Let's 9.0 Together",

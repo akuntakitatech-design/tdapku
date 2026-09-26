@@ -56,6 +56,7 @@ export function PublicHeader({ siteName, navigation, current, mode = "responsive
 }) {
   const brand = logo ?? { sources: logoSources(null, null), alt: `Logo ${siteName || "TDA Pekanbaru"}`, size: "md" as LogoSize };
   const logoSize = LOGO_SIZE[brand.size] ?? LOGO_SIZE.md;
+  // CTA dari backend (Website Publik → Navigasi → CTA Header); null = dinonaktifkan → tidak dirender di desktop & mobile.
   const cta = navigation.headerCta;
   const preview = mode !== "responsive";
   const desktopNavClass = mode === "desktop" ? "flex" : mode === "mobile" ? "hidden" : "hidden md:flex";
@@ -76,7 +77,7 @@ export function PublicHeader({ siteName, navigation, current, mode = "responsive
 
         <nav aria-label="Navigasi utama" data-testid={`${idPrefix}header-desktop-nav`} className={`${desktopNavClass} items-center gap-1`}>
           {navigation.header.map((link) => <NavLink key={link.href + link.label} link={link} current={current} idPrefix={idPrefix} />)}
-          <a href={cta.href} data-testid={`${idPrefix}header-join-button`} className="tda-btn tda-btn-primary ml-2 min-h-11 whitespace-nowrap px-5">{cta.label}</a>
+          {cta ? <a href={cta.href} data-testid={`${idPrefix}header-join-button`} className="tda-btn tda-btn-primary ml-2 min-h-11 whitespace-nowrap px-5">{cta.label}</a> : null}
         </nav>
 
         <details className={`group relative ${mobileClass}`} data-testid={`${idPrefix}header-mobile-menu`} open={mode === "mobile" ? true : undefined}>
@@ -87,7 +88,7 @@ export function PublicHeader({ siteName, navigation, current, mode = "responsive
           </summary>
           <nav aria-label="Navigasi mobile" className="absolute right-0 top-[calc(100%+10px)] z-[var(--tda-z-menu)] w-[min(86vw,320px)] rounded-2xl border border-[color:var(--tda-border)] bg-white p-2 shadow-[var(--tda-shadow-md)]">
             {navigation.header.map((link) => <NavLink key={link.href + link.label} link={link} current={current} mobile idPrefix={idPrefix} />)}
-            <a href={cta.href} data-testid={`${idPrefix}mobile-join-button`} className="tda-btn tda-btn-primary mt-2 w-full">{cta.label}</a>
+            {cta ? <a href={cta.href} data-testid={`${idPrefix}mobile-join-button`} className="tda-btn tda-btn-primary mt-2 w-full">{cta.label}</a> : null}
           </nav>
         </details>
       </div>

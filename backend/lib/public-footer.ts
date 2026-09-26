@@ -62,11 +62,11 @@ export function defaultFooterConfig(): FooterConfig {
     identity: { isVisible: true, showLogo: true, logoMode: "inherit", sourceMode: "settings", organizationName: "", tagline: "", description: "", hashtag: "#RiangGembira" },
     columns: [
       { id: "jelajahi", title: "Jelajahi", isVisible: true, sortOrder: 10, items: [link("profil", "Profil", "/tentang", 10), link("program", "Program", "/program", 20), link("kalender", "Kalender", "/kalender", 30)] },
-      { id: "komunitas", title: "Komunitas", isVisible: true, sortOrder: 20, items: [link("gabung", "Gabung TDA", "/form/member", 10), link("member", "Pendaftaran Member", "/member", 20)] },
+      { id: "komunitas", title: "Komunitas", isVisible: true, sortOrder: 20, items: [link("gabung", "Gabung TDA", "/member", 10), link("profil-usaha", "Profil Usaha & Testimoni", "/form/member", 20)] },
     ],
     contact: { isVisible: true, title: "Hubungi Kami", sourceMode: "settings", whatsapp: "", email: "", phone: "", address: "", mapsUrl: "", show: { whatsapp: true, email: true, phone: false, address: true, maps: true } },
     social: { isVisible: true, sourceMode: "settings", items: SOCIAL_PLATFORMS.map((platform, index) => ({ platform, url: "", isVisible: platform !== "facebook", sortOrder: (index + 1) * 10 })) },
-    cta: { isVisible: true, title: "Siap Bertumbuh Bersama TDA?", description: "Bergabung dengan komunitas pengusaha Pekanbaru untuk belajar, berjejaring, dan naik kelas bersama.", buttonLabel: "Gabung TDA", buttonUrl: "/form/member" },
+    cta: { isVisible: true, title: "Siap Bertumbuh Bersama TDA?", description: "Bergabung dengan komunitas pengusaha Pekanbaru untuk belajar, berjejaring, dan naik kelas bersama.", buttonLabel: "Gabung TDA", buttonUrl: "/member" },
     bottomBar: { isVisible: true, copyright: "© {year} TDA Pekanbaru. Seluruh hak cipta dilindungi.", links: [] },
     appearance: { layout: 4, theme: "deep-navy", motif: "selembayung", motifIntensity: "subtle" },
   };
