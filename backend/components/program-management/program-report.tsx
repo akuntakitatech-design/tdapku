@@ -6,6 +6,7 @@ import {
   LoaderCircle, Printer, Search, Target, TimerReset,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/searchable-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getCachedJson } from "@/lib/client-cache";
@@ -156,7 +157,7 @@ export default function ProgramReport({ onOpenProgram }: { onOpenProgram: (progr
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"><div><h2 className="font-bold">Rekap Program Kerja</h2><p className="mt-1 text-sm text-muted-foreground">{filteredPrograms.length} program sesuai filter</p></div>
           <div className="grid gap-2 sm:grid-cols-3 print:hidden">
             <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari program atau PIC" className="pl-9" /></div>
-            <select value={division} onChange={(event) => setDivision(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-sm"><option value="all">Semua divisi</option>{data.divisions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+            <SearchableSelect className="sm:w-56" testId="report-division-filter" ariaLabel="Filter divisi" value={String(division)} onChange={setDivision} emptyOption={{ value: "all", label: "Semua divisi" }} searchPlaceholder="Cari divisi..." options={data.divisions.map((item) => ({ value: String(item.id), label: item.name }))} />
             <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-sm"><option value="all">Semua status</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           </div>
         </div>

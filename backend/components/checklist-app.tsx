@@ -29,6 +29,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ActivityLog, { type Activity } from "@/components/activity-log";
+import { SearchableSelect } from "@/components/searchable-select";
+import { matchesSearch } from "@/components/search-field";
 import HariHMode from "@/components/hari-h-mode";
 import PicDashboard from "@/components/pic-dashboard";
 
@@ -229,8 +231,8 @@ export default function ChecklistApp() {
   }, [tasks, today]);
 
   const filtered = useMemo(() => tasks.filter((task) => {
-    const term = search.toLowerCase();
-    return (!term || `${task.title} ${task.notes}`.toLowerCase().includes(term))
+    // Standar pencarian Backoffice: trim + case-insensitive (matchesSearch).
+    return matchesSearch(search, [task.title, task.notes, task.pic])
       && (categoryFilter === "all" || String(task.categoryId) === categoryFilter)
       && (statusFilter === "all" || task.status === statusFilter)
       && (!picFilter || task.pic.toLowerCase().includes(picFilter.toLowerCase()));
@@ -540,8 +542,8 @@ export default function ChecklistApp() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <label className="relative"><span className="sr-only">Cari pekerjaan</span><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari pekerjaan..." className="pl-9" /></label>
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="w-full"><SelectValue placeholder="Semua kategori" /></SelectTrigger><SelectContent><SelectItem value="all">Semua kategori</SelectItem>{categories.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent></Select>
+                  <label className="relative"><span className="sr-only">Cari pekerjaan</span><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} data-testid="checklist-search-input" placeholder="Cari pekerjaan..." className="pl-9" /></label>
+                  <SearchableSelect testId="checklist-category-filter" ariaLabel="Filter kategori" value={categoryFilter} onChange={setCategoryFilter} emptyOption={{ value: "all", label: "Semua kategori" }} searchPlaceholder="Cari kategori..." options={categories.map((category) => ({ value: String(category.id), label: category.name }))} />
                   <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full"><SelectValue placeholder="Semua status" /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem>{statuses.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select>
                   <Input value={picFilter} onChange={(e) => setPicFilter(e.target.value)} placeholder="Filter PIC..." aria-label="Filter PIC" />
                 </div>
@@ -594,7 +596,7 @@ export default function ChecklistApp() {
           <div className="grid gap-4 py-2">
             <label className="grid gap-1.5 text-sm font-medium">Pekerjaan<Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Tulis detail pekerjaan" /></label>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-medium">Kategori<Select value={String(draft.categoryId)} onValueChange={(value) => setDraft({ ...draft, categoryId: Number(value) })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{categories.map((category) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent></Select></label>
+              <label className="grid gap-1.5 text-sm font-medium">Kategori<SearchableSelect testId="checklist-form-category" value={String(draft.categoryId)} onChange={(value) => setDraft({ ...draft, categoryId: Number(value) })} placeholder="Pilih kategori" searchPlaceholder="Cari kategori..." options={categories.map((category) => ({ value: String(category.id), label: category.name }))} /></label>
               <div className="grid gap-1.5 text-sm font-medium">
                 <span>PIC</span>
                 <div className="flex gap-2">

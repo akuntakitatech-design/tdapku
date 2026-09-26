@@ -1,14 +1,17 @@
 import { accessErrorResponse, requireTreasuryManager } from "@/db/access-control";
-import { createManualTreasuryTransaction, createTreasuryTransfer, deleteManualTreasuryTransaction, getTreasuryDashboard, updateManualTreasuryTransaction } from "@/db/treasury";
+import { createManualTreasuryTransaction, createTreasuryTransfer, deleteManualTreasuryTransaction, getTreasuryDashboard, searchTreasuryMutations, updateManualTreasuryTransaction } from "@/db/treasury";
 import { reviewOnsitePayment } from "@/db/attendance";
 
 function positiveAmount(value: unknown) {
   return Math.max(0, Math.round(Number(value) || 0));
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireTreasuryManager();
+    // ?q= → pencarian mutasi server-side di seluruh mutasi (hanya daftar mutasi, tanpa ringkasan saldo).
+    const q = new URL(request.url).searchParams.get("q")?.trim();
+    if (q) return Response.json({ mutations: await searchTreasuryMutations(q) });
     return Response.json(await getTreasuryDashboard());
   } catch (reason) {
     return accessErrorResponse(reason, "Buku besar belum dapat dimuat.");

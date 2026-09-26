@@ -6,8 +6,9 @@ const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 export async function GET(request: Request) {
   try {
     await requireMembershipManager();
-    if (new URL(request.url).searchParams.get("scope") === "registrations") {
-      return Response.json({ registrations: await getMembershipRegistrations() });
+    const params = new URL(request.url).searchParams;
+    if (params.get("scope") === "registrations") {
+      return Response.json({ registrations: await getMembershipRegistrations(params.get("q") || "") });
     }
     return Response.json(await getMembershipAdminData());
   } catch (reason) {

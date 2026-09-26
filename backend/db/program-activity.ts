@@ -1,3 +1,4 @@
+import { likeContains, normalizeSearchParam } from "@/lib/search";
 import { env } from "@/lib/runtime-env";
 import type { AccessUser } from "@/lib/access-types";
 
@@ -51,14 +52,26 @@ export async function getUnreadNotificationCount(userId: number) {
   return Number(unread?.total ?? 0);
 }
 
-export async function getNotificationCenter(user: AccessUser, notificationLimit = 30, activityLimit = 50) {
+export type NotificationCenterFilters = { notificationQuery?: string; activityQuery?: string; type?: string; onlyUnread?: boolean };
+
+export async function getNotificationCenter(user: AccessUser, notificationLimit = 30, activityLimit = 50, filters: NotificationCenterFilters = {}) {
   await ensureReminderNotifications(user);
+  // Pencarian & filter server-side (diterapkan SEBELUM LIMIT) → tidak hanya mencari data yang sudah tampil.
+  const nq = normalizeSearchParam(filters.notificationQuery);
+  const aq = normalizeSearchParam(filters.activityQuery);
+  const nPattern = likeContains(nq);
+  const aPattern = likeContains(aq);
+  const type = /^[a-z_]{1,30}$/.test(filters.type || "") ? String(filters.type) : "";
+  const unreadOnly = filters.onlyUnread ? 1 : 0;
   const safeNotificationLimit = Number.isFinite(notificationLimit) ? Math.min(Math.max(Math.trunc(notificationLimit), 1), 100) : 30;
   const safeActivityLimit = Number.isFinite(activityLimit) ? Math.min(Math.max(Math.trunc(activityLimit), 1), 150) : 50;
   const [notifications, unread, activities] = await Promise.all([
     db().prepare(`SELECT n.id, n.program_id AS programId, n.type, n.title, n.message, n.is_read AS isRead,
       n.created_at AS createdAt, p.program_code AS programCode, p.title AS programTitle
-      FROM notifications n LEFT JOIN programs p ON p.id = n.program_id WHERE n.user_id = ? ORDER BY n.created_at DESC, n.id DESC LIMIT ?`).bind(user.id, safeNotificationLimit + 1).all(),
+      FROM notifications n LEFT JOIN programs p ON p.id = n.program_id WHERE n.user_id = ?
+        AND (? = '' OR n.type = ?) AND (? = 0 OR n.is_read = 0)
+        AND (? = '' OR LOWER(n.title) LIKE ? OR LOWER(n.message) LIKE ? OR LOWER(COALESCE(p.program_code, '')) LIKE ? OR LOWER(COALESCE(p.title, '')) LIKE ?)
+        ORDER BY n.created_at DESC, n.id DESC LIMIT ?`).bind(user.id, type, type, unreadOnly, nq, nPattern, nPattern, nPattern, nPattern, safeNotificationLimit + 1).all(),
     db().prepare(`SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND is_read = 0`).bind(user.id).first<{ total: number }>(),
     db().prepare(`SELECT a.id, a.action, a.description, a.created_at AS createdAt,
       COALESCE(u.name, 'Sistem') AS actorName, p.id AS programId, p.program_code AS programCode,
@@ -67,7 +80,9 @@ export async function getNotificationCenter(user: AccessUser, notificationLimit 
       LEFT JOIN programs p ON a.entity_type = 'program' AND CAST(a.entity_id AS INTEGER) = p.id
       LEFT JOIN divisions d ON d.id = p.division_id
       WHERE a.entity_type = 'program' AND (? <> 'kadiv' OR p.division_id = ?)
-      ORDER BY a.created_at DESC, a.id DESC LIMIT ?`).bind(user.role, user.divisionId, safeActivityLimit + 1).all(),
+        AND (? = '' OR LOWER(a.description) LIKE ? OR LOWER(a.action) LIKE ? OR LOWER(COALESCE(u.name, 'Sistem')) LIKE ?
+          OR LOWER(COALESCE(p.program_code, '')) LIKE ? OR LOWER(COALESCE(p.title, '')) LIKE ? OR LOWER(COALESCE(d.name, '')) LIKE ?)
+      ORDER BY a.created_at DESC, a.id DESC LIMIT ?`).bind(user.role, user.divisionId, aq, aPattern, aPattern, aPattern, aPattern, aPattern, aPattern, safeActivityLimit + 1).all(),
   ]);
   return {
     notifications: notifications.results.slice(0, safeNotificationLimit),
