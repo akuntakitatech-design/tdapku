@@ -1,5 +1,5 @@
 import { env } from "@/lib/runtime-env";
-import { getPublicSiteSettings, listPublicNavigation, listPublicSiteSections, type AdminPublicSiteSection } from "@/db/public-site";
+import { getLiveChromeSection, getPublicSiteSettings, listPublicNavigation, listPublicSectionLayout, listPublicSiteSections, type AdminPublicSiteSection } from "@/db/public-site";
 import { listPublishedBusinesses, listPublishedTestimonials } from "@/db/public-member-submissions";
 import { listPublicMedia, type PublicMediaItem } from "@/db/public-media";
 import {
@@ -7,6 +7,8 @@ import {
   instagramHandle, safeHref, whatsappDigits, youtubeId,
 } from "@/lib/public-site-content";
 import { resolvePublicNavigation } from "@/lib/public-navigation";
+import { normalizeFooterConfig, resolveFooter, type ResolvedFooter } from "@/lib/public-footer";
+import { globalLogoUrl, normalizeHeaderConfig, resolveHeaderLogo, type ResolvedLogo } from "@/lib/public-logo";
 
 /*
  * Model homepage publik (READ-ONLY).
@@ -44,6 +46,8 @@ export type PublicHomepage = {
     seoTitle: string; seoDescription: string;
   };
   navigation: PublicNavigation;
+  footer: ResolvedFooter;
+  headerLogo: ResolvedLogo;
   hero: PublicSectionBlock & { images: { src: string; alt: string }[]; intervalMs: number; fromCms: boolean };
   about: PublicSectionBlock | null;
   impact: (PublicSectionBlock & { stats: { value: string; label: string }[] }) | null;
@@ -55,6 +59,10 @@ export type PublicHomepage = {
   gallery: PublicMediaItem[];
   /** Fallback hardcoded yang masih dipakai (untuk audit/QA; tidak ditampilkan di UI). */
   fallbacksUsed: string[];
+  /** Tata letak section homepage (is_visible + sort_order CMS) — urutan publik mengikuti ini. */
+  layout: Record<string, { isVisible: boolean; sortOrder: number }>;
+  /** Section "agenda" (published + visible) — item diambil dari Program existing di halaman. */
+  agenda: PublicSectionBlock | null;
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -110,7 +118,8 @@ async function memberImageFlags() {
 }
 
 export type PublicNavigation = { header: PublicCta[]; footer: PublicCta[]; headerCta: PublicCta };
-export type PublicChrome = { settings: PublicHomepage["settings"]; navigation: PublicNavigation; fallbacksUsed: string[] };
+export type PublicChrome = { settings: PublicHomepage["settings"]; navigation: PublicNavigation; footer: ResolvedFooter; headerLogo: ResolvedLogo; fallbacksUsed: string[] };
+type LiveChrome = Awaited<ReturnType<typeof getLiveChromeSection>>;
 
 const EMAIL_RE = /^[^\s@<>()"']+@[^\s@<>()"']+\.[A-Za-z]{2,}$/;
 
@@ -122,6 +131,8 @@ const EMAIL_RE = /^[^\s@<>()"']+@[^\s@<>()"']+\.[A-Za-z]{2,}$/;
 export function buildPublicChrome(
   s: Awaited<ReturnType<typeof getPublicSiteSettings>> | null,
   navRows: Awaited<ReturnType<typeof listPublicNavigation>>,
+  liveFooter: LiveChrome = null,
+  liveHeader: LiveChrome = null,
 ): PublicChrome {
   const fallbacksUsed: string[] = [];
   const pick = (value: unknown, fallback: string, label: string) => {
@@ -173,30 +184,55 @@ export function buildPublicChrome(
   // → fallback yang disepakati "Gabung TDA" (/form/member).
   fallbacksUsed.push("header.cta");
   if (!nav.footer.length) fallbacksUsed.push("navigation.footer(header-links)");
-  return { settings, navigation: { header: nav.header, footer: nav.footer, headerCta: { ...FALLBACK_HEADER_CTA } }, fallbacksUsed };
+  const navigation = { header: nav.header, footer: nav.footer, headerCta: { ...FALLBACK_HEADER_CTA } };
+
+  // Footer Builder: hanya versi PUBLISHED (snapshot), dinormalisasi ulang secara lenient (payload DB tidak dipercaya).
+  // Belum pernah dipublish → fallback aman dari settings + navigasi (struktur footer lama).
+  const footerConfig = liveFooter ? normalizeFooterConfig(liveFooter.content, false).value : null;
+  if (!footerConfig) fallbacksUsed.push("footer.builder");
+  // Logo: Logo Utama (settings.logo_key) + override khusus header/footer (hanya versi published). Tanpa salinan data.
+  const globalSrc = globalLogoUrl(Number(s?.hasLogo ?? 0) === 1, s?.updatedAt);
+  if (!globalSrc) fallbacksUsed.push("logo.global(static)");
+  const footerLogo = liveFooter?.hasImage ? imageUrl("footer", "main", 0, liveFooter.publishedAt) : null;
+  const footer = resolveFooter(footerConfig, settings, nav.footer.length ? nav.footer : nav.header, { customSrc: footerLogo, globalSrc });
+  const headerConfig = liveHeader ? normalizeHeaderConfig(liveHeader.content, false).value : null;
+  const headerCustom = liveHeader?.hasImage ? imageUrl("header", "main", 0, liveHeader.publishedAt) : null;
+  const headerLogo = resolveHeaderLogo(headerConfig, settings.siteName, headerCustom, globalSrc);
+  return { settings, navigation, footer, headerLogo, fallbacksUsed };
 }
 
 /** Data header/footer global untuk halaman publik selain homepage. Read-only. */
 export async function getPublicChrome(): Promise<PublicChrome> {
-  const [settingsRow, navRows] = await Promise.all([
+  // Satu putaran paralel (tanpa waterfall): settings + navigasi + footer & header live.
+  const [settingsRow, navRows, liveFooter, liveHeader] = await Promise.all([
     getPublicSiteSettings().catch(() => null),
     listPublicNavigation(undefined, true).catch(() => []),
+    getLiveChromeSection("footer").catch(() => null),
+    getLiveChromeSection("header").catch(() => null),
   ]);
-  return buildPublicChrome(settingsRow, navRows);
+  return buildPublicChrome(settingsRow, navRows, liveFooter, liveHeader);
 }
 
 export async function getPublicHomepage(): Promise<PublicHomepage> {
   const fallbacksUsed: string[] = [];
-  const [settingsRow, sections, navRows, banners, gallery] = await Promise.all([
+  const [settingsRow, sections, navRows, banners, gallery, layoutRows] = await Promise.all([
     getPublicSiteSettings().catch(() => null),
     listPublicSiteSections(true).catch(() => [] as AdminPublicSiteSection[]),
     listPublicNavigation(undefined, true).catch(() => []),
     listPublicMedia("banner", true).catch(() => [] as PublicMediaItem[]),
     listPublicMedia("gallery", true).catch(() => [] as PublicMediaItem[]),
+    listPublicSectionLayout().catch(() => []),
   ]);
+  const layout = Object.fromEntries(layoutRows.map((row) => [row.sectionKey, { isVisible: row.isVisible, sortOrder: row.sortOrder }]));
+  const agendaSection = sections.find((section) => section.sectionKey === "agenda");
   const live = new Map(sections.map((section) => [section.sectionKey, section]));
 
-  const chrome = buildPublicChrome(settingsRow, navRows);
+  // Footer live diambil dari daftar section published yang sudah dibaca (tanpa query tambahan).
+  const liveChrome = (key: "footer" | "header"): LiveChrome => {
+    const section = live.get(key);
+    return section ? { content: content(section), hasImage: section.hasImage, publishedAt: section.publishedAt } : null;
+  };
+  const chrome = buildPublicChrome(settingsRow, navRows, liveChrome("footer"), liveChrome("header"));
   fallbacksUsed.push(...chrome.fallbacksUsed);
   const { settings } = chrome;
 
@@ -299,7 +335,10 @@ export async function getPublicHomepage(): Promise<PublicHomepage> {
   return {
     settings,
     navigation: chrome.navigation,
+    footer: chrome.footer,
+    headerLogo: chrome.headerLogo,
     hero, about, impact, spotlight, directory, testimonials, cta: ctaBlock,
-    banners, gallery, fallbacksUsed,
+    banners, gallery, fallbacksUsed, layout,
+    agenda: agendaSection ? block(agendaSection) : null,
   };
 }

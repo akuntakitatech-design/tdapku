@@ -69,12 +69,29 @@ export async function getPublicSiteSettings() {
         tiktok_url AS tiktokUrl,
         footer_text AS footerText,
         seo_title AS seoTitle,
-        seo_description AS seoDescription
+        seo_description AS seoDescription,
+        CASE WHEN COALESCE(logo_key, '') <> '' THEN 1 ELSE 0 END AS hasLogo,
+        updated_at AS updatedAt
       FROM public_site_settings
       WHERE id = 1
       LIMIT 1
     `)
-    .first<PublicSiteSettings>();
+    // hasLogo/updatedAt: flag Logo Utama + versi cache. Kunci R2 (logo_key) tidak pernah dikembalikan.
+    .first<PublicSiteSettings & { hasLogo: number | string; updatedAt: string | null }>();
+}
+
+/* LOGO UTAMA WEBSITE — kolom existing public_site_settings.logo_key (tanpa perubahan skema). */
+export async function getPublicSiteLogo() {
+  return db()
+    .prepare("SELECT logo_key AS logoKey, updated_at AS updatedAt FROM public_site_settings WHERE id = 1 LIMIT 1")
+    .first<{ logoKey: string | null; updatedAt: string | null }>();
+}
+
+export async function setPublicSiteLogoKey(key: string | null, userId: number) {
+  await db()
+    .prepare("UPDATE public_site_settings SET logo_key = ?, updated_by_user_id = ?, updated_at = datetime('now') WHERE id = 1")
+    .bind(key, userId)
+    .run();
 }
 
 /*
@@ -166,6 +183,17 @@ export type AdminPublicSiteSection = PublicSiteSection & { hasImage: boolean; ha
  * publishedOnly = false → working copy untuk backoffice/preview (snapshot tidak dikirim).
  * Kunci objek R2 tidak pernah dikembalikan; hanya flag hasImage.
  */
+/**
+ * Konfigurasi tata letak homepage (tanpa konten): section_key → is_visible + sort_order.
+ * is_visible & sort_order berlaku langsung di publik (lihat catatan di atas) → dipakai untuk urutan/visibilitas
+ * section homepage, termasuk section yang sumber datanya bukan CMS (Program) atau yang memakai fallback aman.
+ */
+export async function listPublicSectionLayout(): Promise<{ sectionKey: string; isVisible: boolean; sortOrder: number }[]> {
+  const rows = (await db().prepare("SELECT section_key AS sectionKey, is_visible AS isVisible, sort_order AS sortOrder FROM public_site_sections ORDER BY sort_order, id")
+    .all<{ sectionKey: string; isVisible: number; sortOrder: number }>()).results || [];
+  return rows.map((row) => ({ sectionKey: String(row.sectionKey), isVisible: Number(row.isVisible) === 1, sortOrder: Number(row.sortOrder) || 0 }));
+}
+
 export async function listPublicSiteSections(publishedOnly = false): Promise<AdminPublicSiteSection[]> {
   const rows = await readSectionRows(publishedOnly ? "WHERE status = 'published' AND is_visible = 1" : "");
   return rows.map(({ imageKey, imageType: _imageType, ...row }) => {
@@ -208,6 +236,91 @@ export async function getLiveSectionImage(sectionKey: string, slot: "main" | "he
   return typeof key === "string" && key ? { key, type: typeof type === "string" ? type : null } : null;
 }
 
+
+/*
+ * FOOTER BUILDER — satu baris public_site_sections (section_key = "footer"), tanpa tabel/kolom baru.
+ * Working copy = content_json (+ image_key untuk logo); LIVE = snapshot __published (mekanisme publish existing).
+ */
+const FOOTER_KEY = "footer";
+/** Section "chrome" (bukan section Homepage): footer (Footer Builder) & header (logo header). */
+export type ChromeSectionKey = "footer" | "header";
+const CHROME_META: Record<ChromeSectionKey, { title: string; sortOrder: number }> = {
+  footer: { title: "Footer", sortOrder: 900 },
+  header: { title: "Header", sortOrder: 899 },
+};
+
+/** Section chrome LIVE untuk publik: hanya published + visible, dari snapshot publish. Kunci R2 tidak dikembalikan. */
+export async function getLiveChromeSection(key: ChromeSectionKey) {
+  const [row] = await readSectionRows("WHERE section_key = ? AND status = 'published' AND is_visible = 1", [key]);
+  if (!row) return null;
+  const live = readSnapshot(parseContent(row.contentJson)) ?? workingSnapshot(row, row.publishedAt || "");
+  return { content: live.content ?? {}, hasImage: Boolean(live.imageKey), publishedAt: row.publishedAt };
+}
+
+export async function getLiveFooterSection() {
+  return getLiveChromeSection(FOOTER_KEY);
+}
+
+/** Section chrome untuk editor admin: working copy + versi live (bila ada). */
+export async function getChromeSectionForAdmin(key: ChromeSectionKey) {
+  const [row] = await readSectionRows("WHERE section_key = ?", [key]);
+  if (!row) return null;
+  const content = parseContent(row.contentJson);
+  const snapshot = readSnapshot(content);
+  const working = workingSnapshot(row, "");
+  const updated = await db().prepare("SELECT updated_at AS updatedAt FROM public_site_sections WHERE id = ?").bind(row.id).first<{ updatedAt: string }>();
+  return {
+    id: Number(row.id),
+    status: row.status,
+    isVisible: Number(row.isVisible) === 1,
+    publishedAt: row.publishedAt,
+    updatedAt: updated?.updatedAt ?? null,
+    hasImage: Boolean(row.imageKey),
+    working: withoutSnapshot(content),
+    published: row.status === "published" ? (snapshot?.content ?? withoutSnapshot(content)) : null,
+    publishedHasImage: row.status === "published" ? Boolean((snapshot ?? working).imageKey) : false,
+    hasUnpublishedChanges: row.status === "published" && Boolean(snapshot) && !sameContent(snapshot as PublishedSnapshot, working),
+  };
+}
+
+export async function getFooterSectionForAdmin() {
+  return getChromeSectionForAdmin(FOOTER_KEY);
+}
+
+/** Buat baris section chrome (status draft) saat admin pertama kali menyimpan draft / mengunggah logo khusus. */
+export async function createChromeSection(key: ChromeSectionKey, contentJson: string, userId: number) {
+  const meta = CHROME_META[key];
+  const result = await db()
+    .prepare(`
+      INSERT INTO public_site_sections
+        (section_key, section_type, title, content_json, status, is_visible, sort_order, created_by_user_id, updated_by_user_id)
+      VALUES (?, ?, ?, ?, 'draft', 1, ?, ?, ?)
+    `)
+    .bind(key, key, meta.title, contentJson, meta.sortOrder, userId, userId)
+    .run();
+  return Number(result.meta.last_row_id);
+}
+
+export async function createFooterSection(contentJson: string, userId: number) {
+  return createChromeSection(FOOTER_KEY, contentJson, userId);
+}
+
+/** Lepas logo khusus dari WORKING COPY (snapshot live tetap utuh sampai Publish). */
+export async function clearPublicSiteSectionImage(id: number, userId: number) {
+  const [current] = await readSectionRows("WHERE id = ?", [id]);
+  const contentJson = await preserveSnapshot(id, JSON.stringify(withoutSnapshot(parseContent(current?.contentJson))));
+  await db()
+    .prepare("UPDATE public_site_sections SET image_key = NULL, image_name = NULL, image_type = NULL, content_json = ?, updated_by_user_id = ?, updated_at = datetime('now') WHERE id = ?")
+    .bind(contentJson, userId, id)
+    .run();
+}
+
+export async function setPublicSiteSectionVisibility(id: number, isVisible: boolean, userId: number) {
+  await db()
+    .prepare("UPDATE public_site_sections SET is_visible = ?, updated_by_user_id = ?, updated_at = datetime('now') WHERE id = ?")
+    .bind(isVisible ? 1 : 0, userId, id)
+    .run();
+}
 
 export async function listPublicNavigation(
   location?: "header" | "footer",

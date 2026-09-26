@@ -23,7 +23,8 @@ export async function GET() {
 
     return Response.json({
       settings,
-      sections,
+      // Footer (Footer Builder) & Header (logo header) punya menu/editor sendiri → tidak ikut daftar section Homepage.
+      sections: sections.filter((section) => section.sectionKey !== "footer" && section.sectionKey !== "header"),
       navigation,
     });
   } catch (reason) {

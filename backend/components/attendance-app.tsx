@@ -1421,9 +1421,11 @@ export default function AttendanceApp({
       )}
 
       {tab === "checkin" && (
-        <section className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-[.8fr_1.2fr]">
+          {/* grid-cols-1 = minmax(0,1fr): tabel peserta (min-w 760px, sudah di dalam overflow-x-auto) tidak lagi
+              melebarkan track grid di mobile → tidak ada horizontal scroll. Presentasi saja, logika tidak berubah. */}
           <QrScanner eventId={eventId} onScanned={checkInToken} />
-          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="min-w-0 rounded-2xl border bg-white p-5 shadow-sm">
             <h2 className="font-bold">Check-in manual</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Cari peserta, lalu tekan tombol Hadir.

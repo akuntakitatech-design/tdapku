@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Plus_Jakarta_Sans } from "next/font/google";
+import { Instrument_Serif, Manrope } from "next/font/google";
 import "./globals.css";
 
-// Design system TDA Pekanbaru (Website 00): DM Serif Display = display/heading, Plus Jakarta Sans = body/UI.
-const displayFont = DM_Serif_Display({
+// Design system Website Publik (major visual revision): Instrument Serif = display/headline, Manrope = body/UI.
+// Instrument Serif hanya 400 normal (italic tidak dipakai headline → tidak dimuat); Manrope variable font (satu file per subset, bobot 200–800).
+// Font ini hanya dipakai di dalam `.tda-public`; Backoffice tetap memakai font sistem (Arial) seperti production.
+const displayFont = Instrument_Serif({
   subsets: ["latin"],
   weight: "400",
-  style: ["normal", "italic"],
+  style: "normal",
   display: "swap",
   variable: "--font-tda-display",
 });
 
-const sansFont = Plus_Jakarta_Sans({
+const sansFont = Manrope({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: "variable",
   display: "swap",
   variable: "--font-tda-sans",
 });
