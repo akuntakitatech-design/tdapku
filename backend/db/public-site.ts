@@ -299,6 +299,41 @@ export async function getChromeSectionForAdmin(key: ChromeSectionKey) {
   };
 }
 
+/**
+ * CTA HEADER — disimpan di content_json.cta baris section "header" (tanpa kolom baru).
+ * Dibaca dari working copy → berlaku langsung (seperti Navigasi), terlepas dari Draft/Publish logo header.
+ */
+export async function getHeaderCtaRaw(): Promise<unknown> {
+  const row = await db()
+    .prepare("SELECT content_json AS contentJson FROM public_site_sections WHERE section_key = 'header' ORDER BY id ASC LIMIT 1")
+    .first<{ contentJson: string | null }>();
+  return row ? parseContent(row.contentJson).cta ?? null : null;
+}
+
+/**
+ * Simpan CTA header. Kunci "cta" juga disalin ke snapshot publish (bila ada) supaya Draft/Publish logo header
+ * tidak dianggap berubah & logo draft TIDAK ikut terbit. Baris baru dibuat sebagai draft (logo tetap Logo Utama).
+ */
+export async function setHeaderCta(cta: { label: string; url: string; isActive: boolean }, userId: number) {
+  const [row] = await readSectionRows("WHERE section_key = ?", ["header"]);
+  if (!row) {
+    await createChromeSection("header", JSON.stringify({ version: 1, logo: { mode: "inherit", alt: "", size: "md" }, cta }), userId);
+    return;
+  }
+  const content = parseContent(row.contentJson);
+  content.cta = cta;
+  const snapshot = content[PUBLISHED_SNAPSHOT_KEY];
+  if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
+    const snap = snapshot as Record<string, unknown>;
+    const snapContent = snap.content && typeof snap.content === "object" && !Array.isArray(snap.content) ? (snap.content as Record<string, unknown>) : null;
+    if (snapContent) snap.content = { ...snapContent, cta };
+  }
+  await db()
+    .prepare("UPDATE public_site_sections SET content_json = ?, updated_by_user_id = ?, updated_at = datetime('now') WHERE id = ?")
+    .bind(JSON.stringify(content), userId, row.id)
+    .run();
+}
+
 export async function getFooterSectionForAdmin() {
   return getChromeSectionForAdmin(FOOTER_KEY);
 }
