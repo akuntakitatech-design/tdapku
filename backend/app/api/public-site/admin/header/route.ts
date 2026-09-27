@@ -2,6 +2,7 @@ import { accessErrorResponse, requireKetua } from "@/db/access-control";
 import {
   createChromeSection,
   getChromeSectionForAdmin,
+  getHeaderCtaRaw,
   getPublicSiteSettings,
   listPublicNavigation,
   setPublicSiteSectionContent,
@@ -20,12 +21,13 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireKetua();
-    const [section, settingsRow, navRows] = await Promise.all([
+    const [section, settingsRow, navRows, headerCtaRaw] = await Promise.all([
       getChromeSectionForAdmin("header"),
       getPublicSiteSettings().catch(() => null),
       listPublicNavigation(undefined, true).catch(() => []),
+      getHeaderCtaRaw().catch(() => null),
     ]);
-    const chrome = buildPublicChrome(settingsRow, navRows, null, null);
+    const chrome = buildPublicChrome(settingsRow, navRows, null, null, headerCtaRaw);
     return Response.json({
       section: section
         ? {
@@ -57,7 +59,9 @@ export async function PUT(request: Request) {
     if (value.logo.mode === "custom" && !existing?.hasImage) {
       return Response.json({ error: "Unggah logo khusus header terlebih dahulu, atau pilih Logo Utama." }, { status: 400 });
     }
-    const json = JSON.stringify(value);
+    // CTA header dikelola terpisah (Website Publik → Navigasi) → pertahankan content_json.cta yang tersimpan.
+    const savedCta = existing?.working && typeof existing.working === "object" ? (existing.working as Record<string, unknown>).cta : undefined;
+    const json = JSON.stringify(savedCta ? { ...value, cta: savedCta } : value);
     if (existing) await setPublicSiteSectionContent(existing.id, json, user.id);
     else await createChromeSection("header", json, user.id);
     const section = await getChromeSectionForAdmin("header");

@@ -17,7 +17,11 @@ import {
   resolvePublicNavigation, validateNavigationInput,
   type NavigationInput, type NavigationLocation, type NavigationRow,
 } from "@/lib/public-navigation";
-import { FALLBACK_HEADER_CTA, FALLBACK_SITE } from "@/lib/public-site-content";
+import { FALLBACK_SITE } from "@/lib/public-site-content";
+import {
+  HEADER_CTA_DEFAULT, HEADER_CTA_LABEL_MAX, MEMBER_PROFILE_FORM_PATH, MEMBER_REGISTRATION_PATH,
+  resolveHeaderCta, validateHeaderCta, type HeaderCtaConfig,
+} from "@/lib/public-header-cta";
 
 /*
  * Editor Navigasi Website Publik (Website 02A).
@@ -30,6 +34,8 @@ type FormState = { location: NavigationLocation; label: string; href: string; so
 type FieldErrors = Partial<Record<keyof NavigationInput, string>>;
 
 const API = "/api/public-site/admin/navigation";
+const CTA_API = "/api/public-site/admin/header-cta";
+type CtaForm = { label: string; url: string; isActive: boolean };
 const PREVIEW_PATHS = [
   { value: "/", label: "Beranda (/)" },
   { value: "/tentang", label: "Profil (/tentang)" },
@@ -83,6 +89,15 @@ export default function NavigationManagement({ siteName }: { siteName?: string }
   const [deleteTarget, setDeleteTarget] = useState<NavigationRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [previewPath, setPreviewPath] = useState("/");
+  // CTA Header (content_json.cta section "header") — berlaku langsung setelah disimpan, sama seperti menu.
+  const [ctaSaved, setCtaSaved] = useState<HeaderCtaConfig>(HEADER_CTA_DEFAULT);
+  const [ctaIsDefault, setCtaIsDefault] = useState(true);
+  const [ctaForm, setCtaForm] = useState<CtaForm>(HEADER_CTA_DEFAULT);
+  const [ctaErrors, setCtaErrors] = useState<Partial<Record<keyof CtaForm, string>>>({});
+  const [ctaLoading, setCtaLoading] = useState(true);
+  const [ctaSaving, setCtaSaving] = useState(false);
+  const [ctaMessage, setCtaMessage] = useState("");
+  const [ctaError, setCtaError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -106,6 +121,41 @@ export default function NavigationManagement({ siteName }: { siteName?: string }
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch(CTA_API, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "CTA header belum dapat dimuat.");
+        return payload as { config: HeaderCtaConfig; isDefault: boolean };
+      })
+      .then((payload) => { if (!cancelled) { setCtaSaved(payload.config); setCtaForm(payload.config); setCtaIsDefault(payload.isDefault); } })
+      .catch((reason) => { if (!cancelled) setCtaError(reason instanceof Error ? reason.message : "CTA header belum dapat dimuat."); })
+      .finally(() => { if (!cancelled) setCtaLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const ctaDirty = ctaForm.label !== ctaSaved.label || ctaForm.url !== ctaSaved.url || ctaForm.isActive !== ctaSaved.isActive;
+
+  async function saveCta(event: React.FormEvent) {
+    event.preventDefault();
+    setCtaMessage(""); setCtaError("");
+    const check = validateHeaderCta({ ...ctaForm });
+    if (!check.ok) { setCtaErrors(check.errors); return; }
+    setCtaErrors({}); setCtaSaving(true);
+    try {
+      const response = await fetch(CTA_API, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(check.value) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) { setCtaErrors(payload.errors || {}); setCtaError(payload.error || "CTA header belum dapat disimpan."); return; }
+      setCtaSaved(payload.config); setCtaForm(payload.config); setCtaIsDefault(false);
+      setCtaMessage(payload.config.isActive ? `CTA "${payload.config.label}" tampil di header website publik.` : "CTA header dinonaktifkan — tombol tidak tampil di website publik.");
+    } catch {
+      setCtaError("CTA header belum dapat disimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setCtaSaving(false);
+    }
+  }
+
   const sorted = useMemo(() => sortRows(items), [items]);
 
   // Preview LOKAL: gabungkan state form (belum disimpan) ke daftar tersimpan. Tidak ada request tulis.
@@ -121,7 +171,10 @@ export default function NavigationManagement({ siteName }: { siteName?: string }
 
   const preview = useMemo(() => resolvePublicNavigation(previewRows), [previewRows]);
   const live = useMemo(() => resolvePublicNavigation(items), [items]);
-  const previewNavigation = { header: preview.header, footer: preview.footer, headerCta: { ...FALLBACK_HEADER_CTA } };
+  // Preview CTA: isian form CTA bila valid (belum disimpan), selain itu CTA tersimpan — aturan sama dengan header publik.
+  const ctaCheck = validateHeaderCta({ ...ctaForm });
+  const previewCta = resolveHeaderCta(ctaCheck.ok ? ctaCheck.value : ctaSaved);
+  const previewNavigation = { header: preview.header, footer: preview.footer, headerCta: previewCta };
 
   function openCreate() {
     const headerSorts = items.filter((item) => item.location === "header").map((item) => Number(item.sortOrder) || 0);
@@ -281,6 +334,51 @@ export default function NavigationManagement({ siteName }: { siteName?: string }
         </div>
       </div>
 
+      <form onSubmit={saveCta} noValidate className="rounded-2xl border bg-white p-6" data-testid="header-cta-form">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold">CTA Header (tombol utama)</h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Tombol di kanan header (desktop) dan di bawah menu mobile. Tersimpan langsung berlaku di website publik.
+            </p>
+          </div>
+          <span data-testid="header-cta-source" className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ctaIsDefault ? "bg-slate-100 text-slate-600" : "bg-blue-50 text-blue-700"}`}>
+            {ctaIsDefault ? "Bawaan (belum diatur)" : "Diatur dari backend"}
+          </span>
+        </div>
+        {ctaLoading ? <div className="mt-5 h-24 animate-pulse rounded-xl bg-muted" data-testid="header-cta-loading" /> : (
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="cta-label">CTA Label</Label>
+              <Input id="cta-label" data-testid="header-cta-label-input" value={ctaForm.label} maxLength={HEADER_CTA_LABEL_MAX} aria-invalid={Boolean(ctaErrors.label)}
+                placeholder="Contoh: Gabung TDA" onChange={(event) => setCtaForm({ ...ctaForm, label: event.target.value })} />
+              {ctaErrors.label ? <p data-testid="header-cta-label-error" className="text-xs text-red-600">{ctaErrors.label}</p> : null}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="cta-url">CTA URL</Label>
+              <Input id="cta-url" data-testid="header-cta-url-input" value={ctaForm.url} maxLength={NAV_HREF_MAX} aria-invalid={Boolean(ctaErrors.url)}
+                placeholder={MEMBER_REGISTRATION_PATH} onChange={(event) => setCtaForm({ ...ctaForm, url: event.target.value })} />
+              {ctaErrors.url ? <p data-testid="header-cta-url-error" className="text-xs text-red-600">{ctaErrors.url}</p>
+                : ctaForm.url.trim().replace(/\/+$/, "") === MEMBER_PROFILE_FORM_PATH ? (
+                  <p data-testid="header-cta-url-warning" className="text-xs text-amber-700">
+                    Perhatian: {MEMBER_PROFILE_FORM_PATH} adalah form Profil Usaha & Testimoni, bukan pendaftaran member baru. Pendaftaran Member/Kelas Reguler: {MEMBER_REGISTRATION_PATH}
+                  </p>
+                ) : <p className="text-xs text-muted-foreground">Pendaftaran Member Baru & Kelas Reguler: <code>{MEMBER_REGISTRATION_PATH}</code></p>}
+            </div>
+            <div className="flex items-center gap-3 md:col-span-2">
+              <Switch id="cta-active" data-testid="header-cta-active-switch" checked={ctaForm.isActive} onCheckedChange={(checked) => setCtaForm({ ...ctaForm, isActive: checked })} />
+              <Label htmlFor="cta-active">{ctaForm.isActive ? "Aktif — tombol tampil di header" : "Nonaktif — tombol tidak tampil di header"}</Label>
+            </div>
+          </div>
+        )}
+        {ctaMessage ? <div data-testid="header-cta-message" role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{ctaMessage}</div> : null}
+        {ctaError ? <div data-testid="header-cta-error" role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{ctaError}</div> : null}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button type="submit" disabled={ctaSaving || ctaLoading || !ctaDirty} data-testid="header-cta-save-button">{ctaSaving ? <LoaderCircle className="animate-spin" /> : null}Simpan CTA</Button>
+          <Button type="button" variant="outline" disabled={ctaSaving || !ctaDirty} onClick={() => { setCtaForm(ctaSaved); setCtaErrors({}); }} data-testid="header-cta-reset-button">Batalkan perubahan</Button>
+        </div>
+      </form>
+
       {formOpen ? (
         <form onSubmit={save} noValidate className="rounded-2xl border bg-white p-6" data-testid="nav-form">
           <h3 className="text-base font-bold">{editingId ? "Edit Menu" : "Tambah Menu"}</h3>
@@ -335,7 +433,8 @@ export default function NavigationManagement({ siteName }: { siteName?: string }
             <h3 className="flex items-center gap-2 text-base font-bold"><Eye className="size-4" />Preview Navigasi</h3>
             <p className="mt-1 text-sm text-muted-foreground" data-testid="nav-preview-mode">
               {formOpen ? "Simulasi dengan isian form yang BELUM disimpan (tidak ada data yang ditulis)." : "Tampilan navigasi yang sedang tampil di website publik."}
-              {preview.headerFromFallback ? " Header memakai menu bawaan karena belum ada menu header aktif." : ""}
+              {preview.headerFromFallback ? " Menu header memakai menu bawaan (pengaman) karena belum ada menu header aktif — tambahkan & aktifkan menu untuk menggantinya." : ""}
+              {ctaDirty ? " CTA memakai isian form CTA yang belum disimpan." : ""}
             </p>
           </div>
           <div className="grid gap-1">
