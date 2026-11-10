@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { publicOrigin } from "@/lib/public-origin";
+import { DiagnosisFormShare } from "./diagnosis-form-share";
 
 type Participant = {
   participantId: number;
@@ -240,6 +241,8 @@ export default function DiagnosisManagement() {
         <SummaryCard label="Belum diisi" value={summary.empty} hint="Perlu diingatkan" />
         <SummaryCard label="Rata-rata skor" value={`${summary.average}%`} hint={`Maksimal ${data.maxScore} poin`} />
       </div>
+
+      <DiagnosisFormShare />
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
