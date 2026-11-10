@@ -11,7 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DIAGNOSIS_ASPECTS,
   DIAGNOSIS_IDENTITY_FIELDS,
+  DIAGNOSIS_ITEM_COUNT,
+  DIAGNOSIS_MAX_SCORE,
+  DIAGNOSIS_QUESTIONS,
   computeDiagnosisResult,
   type DiagnosisIdentityKey,
   type DiagnosisResult,
@@ -69,21 +73,60 @@ function textField(row: DiagnosisPayload | null, key: string) {
   return typeof value === "string" ? value : value === null || value === undefined ? "" : String(value);
 }
 
-export default function BusinessDiagnosisForm({ token }: { token: string }) {
-  const [payload, setPayload] = useState<FormPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+function createPublicPayload(): FormPayload {
+  return {
+    participant: {
+      participantId: 0,
+      participantName: "",
+      phone: "",
+      category: "",
+      eventId: 0,
+      eventName: "Form Umum",
+      eventDate: "",
+      programTitle: null,
+    },
+    diagnosis: null,
+    items: [],
+    questions: [...DIAGNOSIS_QUESTIONS],
+    aspects: DIAGNOSIS_ASPECTS.map((aspect) => ({
+      key: aspect.key,
+      label: aspect.label,
+      items: aspect.items,
+      maxScore: aspect.items.length * 5,
+    })),
+    itemCount: DIAGNOSIS_ITEM_COUNT,
+    maxScore: DIAGNOSIS_MAX_SCORE,
+  };
+}
+
+export default function BusinessDiagnosisForm({
+  token,
+  mode = "peserta",
+}: {
+  token?: string;
+  mode?: "peserta" | "umum";
+}) {
+  const isPublic = mode === "umum";
+  const participantToken = token ?? "";
+  const [payload, setPayload] = useState<FormPayload | null>(() => (isPublic ? createPublicPayload() : null));
+  const [loading, setLoading] = useState(!isPublic);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [identity, setIdentity] = useState<Record<DiagnosisIdentityKey, string>>(emptyIdentity);
-  const [answers, setAnswers] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<string[]>(() =>
+    isPublic ? DIAGNOSIS_QUESTIONS.map(() => "") : [],
+  );
   const [scores, setScores] = useState<Record<number, number>>({});
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [savedAt, setSavedAt] = useState("");
+  const [honeypot, setHoneypot] = useState("");
+  const [resultRef, setResultRef] = useState("");
 
   useEffect(() => {
+    if (isPublic) return;
     let cancelled = false;
-    fetch(`/api/public-diagnosis/${encodeURIComponent(token)}`, { cache: "no-store" })
+    fetch(`/api/public-diagnosis/${encodeURIComponent(participantToken)}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body?.error || "Form diagnosis belum dapat dimuat.");
@@ -122,7 +165,7 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [isPublic, participantToken]);
 
   const itemCount = payload?.itemCount ?? 0;
   const answeredCount = Object.keys(scores).length;
@@ -148,8 +191,13 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
 
   function goNext() {
     if (step === 0) {
-      if (!identity.ownerName.trim() || !identity.businessName.trim()) {
-        toast.error("Nama pemilik dan nama usaha wajib diisi.");
+      const missingWhatsapp = isPublic && !identity.whatsapp.trim();
+      if (!identity.ownerName.trim() || !identity.businessName.trim() || missingWhatsapp) {
+        toast.error(
+          isPublic
+            ? "Nama pemilik, nama usaha, dan nomor WhatsApp wajib diisi."
+            : "Nama pemilik dan nama usaha wajib diisi.",
+        );
         return;
       }
     }
@@ -173,10 +221,13 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
   async function submit() {
     setSaving(true);
     try {
-      const response = await fetch(`/api/public-diagnosis/${encodeURIComponent(token)}`, {
+      const endpoint = isPublic
+        ? "/api/public-diagnosis"
+        : `/api/public-diagnosis/${encodeURIComponent(participantToken)}`;
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...identity, answers, scores }),
+        body: JSON.stringify({ ...identity, answers, scores, companyWebsite: honeypot }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error || "Diagnosis belum dapat disimpan.");
@@ -187,6 +238,7 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
         percent: Number(body.percent ?? 0),
         label: String(body.label ?? ""),
       });
+      setResultRef(String(body.publicRef ?? ""));
       toast.success("Diagnosis berhasil disimpan. Terima kasih!");
       setSavedAt(dateTime(new Date().toISOString()));
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -232,8 +284,11 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">TDA Pekanbaru 9.0</p>
         <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Formulir Diagnosis Bisnis UMKM</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {payload.participant.participantName} · {payload.participant.eventName}
-          {payload.participant.programTitle ? ` · ${payload.participant.programTitle}` : ""}
+          {isPublic
+            ? "Form terbuka untuk umum · hasil langsung terlihat setelah dikirim"
+            : `${payload.participant.participantName} · ${payload.participant.eventName}${
+                payload.participant.programTitle ? ` · ${payload.participant.programTitle}` : ""
+              }`}
         </p>
       </header>
 
@@ -242,7 +297,8 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
           result={result}
           weakestItems={weakestItems}
           savedAt={savedAt}
-          onEdit={() => setResult(null)}
+          resultRef={resultRef}
+          onEdit={isPublic ? undefined : () => setResult(null)}
         />
       ) : (
         <Card>
@@ -284,6 +340,18 @@ export default function BusinessDiagnosisForm({ token }: { token: string }) {
                     </div>
                   );
                 })}
+                <div className="hidden" aria-hidden="true">
+                  <label htmlFor="company-website">Website</label>
+                  <input
+                    id="company-website"
+                    name="companyWebsite"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(event) => setHoneypot(event.target.value)}
+                  />
+                </div>
               </div>
             ) : null}
 
@@ -490,12 +558,14 @@ function DiagnosisResultView({
   result,
   weakestItems,
   savedAt,
+  resultRef,
   onEdit,
 }: {
   result: DiagnosisResult;
   weakestItems: { no: number; statement: string; aspect: string; score: number }[];
   savedAt: string;
-  onEdit: () => void;
+  resultRef: string;
+  onEdit?: () => void;
 }) {
   return (
     <div className="space-y-5" data-testid="diagnosis-result">
@@ -557,9 +627,24 @@ function DiagnosisResultView({
         </Card>
       ) : null}
 
-      <Button type="button" variant="outline" onClick={onEdit} data-testid="diagnosis-edit">
-        Perbaiki isian
-      </Button>
+      {resultRef ? (
+        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Simpan tautan hasil ini:{" "}
+          <a
+            className="font-medium text-primary underline underline-offset-4"
+            href={`/diagnosis/hasil/${resultRef}`}
+            data-testid="diagnosis-result-link"
+          >
+            /diagnosis/hasil/{resultRef}
+          </a>
+        </p>
+      ) : null}
+
+      {onEdit ? (
+        <Button type="button" variant="outline" onClick={onEdit} data-testid="diagnosis-edit">
+          Perbaiki isian
+        </Button>
+      ) : null}
     </div>
   );
 }

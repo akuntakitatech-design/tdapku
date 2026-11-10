@@ -1,5 +1,5 @@
 import { accessErrorResponse, requireRegisteredUser } from "@/db/access-control";
-import { listDiagnosisParticipants } from "@/db/business-diagnoses";
+import { listDiagnosisParticipants, listPublicDiagnoses } from "@/db/business-diagnoses";
 import {
   DIAGNOSIS_ASPECTS,
   DIAGNOSIS_ITEM_COUNT,
@@ -13,9 +13,13 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireRegisteredUser();
-    const participants = await listDiagnosisParticipants();
+    const [participants, publicDiagnoses] = await Promise.all([
+      listDiagnosisParticipants(),
+      listPublicDiagnoses(),
+    ]);
     return Response.json({
       participants,
+      publicDiagnoses,
       aspects: DIAGNOSIS_ASPECTS.map((aspect) => ({
         key: aspect.key,
         label: aspect.label,
