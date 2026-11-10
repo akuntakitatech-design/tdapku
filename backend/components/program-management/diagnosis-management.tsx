@@ -26,13 +26,34 @@ type Participant = {
   scoreMax: number | null;
   scorePercent: number | null;
   resultLabel: string | null;
+  diagnosisSource: string | null;
   businessName: string | null;
   updatedAt: string | null;
 };
 
 type Aspect = { key: string; label: string; itemCount: number; maxScore: number };
 
-type Data = { participants: Participant[]; aspects: Aspect[]; maxScore: number; itemCount: number };
+type PublicRow = {
+  diagnosisId: number;
+  publicRef: string;
+  ownerName: string;
+  businessName: string;
+  whatsapp: string;
+  diagnosisDate: string;
+  scoreTotal: number;
+  scoreMax: number;
+  scorePercent: number;
+  resultLabel: string;
+  updatedAt: string;
+};
+
+type Data = {
+  participants: Participant[];
+  publicDiagnoses: PublicRow[];
+  aspects: Aspect[];
+  maxScore: number;
+  itemCount: number;
+};
 
 type DiagnosisDetailRow = Record<string, string | number | null>;
 
@@ -78,11 +99,18 @@ function dateTime(value: string) {
 }
 
 export default function DiagnosisManagement() {
-  const [data, setData] = useState<Data>({ participants: [], aspects: [], maxScore: 305, itemCount: 61 });
+  const [data, setData] = useState<Data>({
+    participants: [],
+    publicDiagnoses: [],
+    aspects: [],
+    maxScore: 305,
+    itemCount: 61,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "filled" | "empty">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "peserta" | "umum">("all");
   const [eventFilter, setEventFilter] = useState("all");
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -96,6 +124,7 @@ export default function DiagnosisManagement() {
       setError(null);
       setData({
         participants: body.participants ?? [],
+        publicDiagnoses: body.publicDiagnoses ?? [],
         aspects: body.aspects ?? [],
         maxScore: Number(body.maxScore ?? 305),
         itemCount: Number(body.itemCount ?? 61),
@@ -145,6 +174,7 @@ export default function DiagnosisManagement() {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return data.participants.filter((participant) => {
+      if (sourceFilter === "umum") return false;
       if (status === "filled" && !participant.diagnosisId) return false;
       if (status === "empty" && participant.diagnosisId) return false;
       if (eventFilter !== "all" && String(participant.eventId) !== eventFilter) return false;
@@ -153,19 +183,34 @@ export default function DiagnosisManagement() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
     });
-  }, [data.participants, eventFilter, search, status]);
+  }, [data.participants, eventFilter, search, sourceFilter, status]);
+
+  const filteredPublic = useMemo(() => {
+    if (sourceFilter === "peserta") return [];
+    if (status === "empty") return [];
+    if (eventFilter !== "all") return [];
+    const query = search.trim().toLowerCase();
+    return data.publicDiagnoses.filter((row) => {
+      if (!query) return true;
+      return [row.ownerName, row.businessName, row.whatsapp]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [data.publicDiagnoses, eventFilter, search, sourceFilter, status]);
 
   const summary = useMemo(() => {
-    const total = data.participants.length;
-    const filled = data.participants.filter((participant) => participant.diagnosisId).length;
-    const percents = data.participants
-      .map((participant) => participant.scorePercent)
-      .filter((value): value is number => typeof value === "number");
+    const total = data.participants.length + data.publicDiagnoses.length;
+    const filled =
+      data.participants.filter((participant) => participant.diagnosisId).length + data.publicDiagnoses.length;
+    const percents = [
+      ...data.participants.map((participant) => participant.scorePercent),
+      ...data.publicDiagnoses.map((row) => row.scorePercent),
+    ].filter((value): value is number => typeof value === "number");
     const average = percents.length
       ? Math.round((percents.reduce((sum, value) => sum + value, 0) / percents.length) * 10) / 10
       : 0;
     return { total, filled, empty: total - filled, average };
-  }, [data.participants]);
+  }, [data.participants, data.publicDiagnoses]);
 
   function diagnosisUrl(token: string) {
     return `${publicOrigin()}/diagnosis/${token}`;
@@ -228,7 +273,7 @@ export default function DiagnosisManagement() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-4">
             <Input
               placeholder="Cari nama, usaha, atau WhatsApp…"
               value={search}
@@ -258,6 +303,16 @@ export default function DiagnosisManagement() {
               <option value="filled">Sudah diisi</option>
               <option value="empty">Belum diisi</option>
             </select>
+            <select
+              className="h-9 rounded-md border bg-background px-3 text-sm"
+              value={sourceFilter}
+              onChange={(event) => setSourceFilter(event.target.value as "all" | "peserta" | "umum")}
+              data-testid="diagnosis-source-filter"
+            >
+              <option value="all">Semua sumber</option>
+              <option value="peserta">Peserta kelas</option>
+              <option value="umum">Umum (form terbuka)</option>
+            </select>
           </div>
 
           {error ? (
@@ -270,10 +325,12 @@ export default function DiagnosisManagement() {
             <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Memuat data peserta…
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filtered.length === 0 && filteredPublic.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">Tidak ada peserta yang cocok.</p>
           ) : (
-            <ul className="divide-y rounded-lg border">
+            <>
+              {filtered.length ? (
+                <ul className="divide-y rounded-lg border" data-testid="diagnosis-participant-list">
               {filtered.map((participant) => (
                 <li
                   key={participant.participantId}
@@ -324,7 +381,62 @@ export default function DiagnosisManagement() {
                   </div>
                 </li>
               ))}
-            </ul>
+                </ul>
+              ) : null}
+
+              {filteredPublic.length ? (
+                <ul className="divide-y rounded-lg border" data-testid="diagnosis-public-list">
+                  {filteredPublic.map((row) => (
+                    <li
+                      key={`umum-${row.diagnosisId}`}
+                      className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {row.ownerName}
+                          <Badge variant="outline" className="ml-1.5 align-middle">
+                            Umum
+                          </Badge>
+                          {row.businessName ? (
+                            <span className="font-normal text-muted-foreground"> · {row.businessName}</span>
+                          ) : null}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          Form terbuka · {row.whatsapp || "tanpa nomor"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 sm:shrink-0">
+                        <Badge variant="secondary">
+                          {row.scoreTotal}/{row.scoreMax} · {row.scorePercent}%
+                        </Badge>
+                        <Button asChild size="sm" variant="outline">
+                          <a
+                            href={`/diagnosis/hasil/${row.publicRef}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-testid={`diagnosis-public-result-${row.diagnosisId}`}
+                          >
+                            <ExternalLink className="size-4" />
+                            <span className="sm:hidden">Hasil</span>
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setDetailLoading(true);
+                            setDetailId(row.diagnosisId);
+                          }}
+                        >
+                          <span className="sm:hidden">Detail</span>
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
           )}
         </CardContent>
       </Card>

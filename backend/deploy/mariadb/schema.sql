@@ -795,8 +795,10 @@ ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME(3) NULL;
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS `business_diagnoses` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `participant_id` BIGINT NOT NULL,
+  `participant_id` BIGINT NULL,
   `event_id` BIGINT NULL,
+  `source` VARCHAR(16) NOT NULL DEFAULT 'peserta',
+  `public_ref` VARCHAR(64) NULL,
   `owner_name` TEXT NOT NULL DEFAULT '',
   `business_name` TEXT NOT NULL DEFAULT '',
   `diagnosis_date` VARCHAR(32) NOT NULL DEFAULT '',
@@ -825,7 +827,8 @@ CREATE TABLE IF NOT EXISTS `business_diagnoses` (
   `created_at` VARCHAR(32) NOT NULL DEFAULT (DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')),
   `updated_at` VARCHAR(32) NOT NULL DEFAULT (DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `business_diagnoses_participant_key` (`participant_id`)
+  UNIQUE KEY `business_diagnoses_participant_key` (`participant_id`),
+  UNIQUE KEY `business_diagnoses_public_ref_key` (`public_ref`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `business_diagnosis_items` (
@@ -840,6 +843,25 @@ CREATE TABLE IF NOT EXISTS `business_diagnosis_items` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `business_diagnosis_items_unique` (`diagnosis_id`, `item_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Form terbuka untuk umum: baris boleh tanpa peserta kelas, dengan penanda sumber dan kunci hasil.
+-- ALTER di bawah hanya rekonsiliasi untuk tabel yang terlanjur dibuat PR #10 (saat itu kosong);
+-- idempoten dan aman dijalankan berulang. Tabel baru cukup memakai definisi CREATE di atas.
+ALTER TABLE `business_diagnoses` MODIFY COLUMN `participant_id` BIGINT NULL;
+ALTER TABLE `business_diagnoses` ADD COLUMN IF NOT EXISTS `source` VARCHAR(16) NOT NULL DEFAULT 'peserta';
+ALTER TABLE `business_diagnoses` ADD COLUMN IF NOT EXISTS `public_ref` VARCHAR(64) NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS `business_diagnoses_public_ref_key` ON `business_diagnoses` (`public_ref`);
+CREATE INDEX IF NOT EXISTS `idx_business_diagnoses_source` ON `business_diagnoses` (`source`);
+
+-- Pembatas pengisian form terbuka (tanpa login): maksimal 5 per jam per IP.
+CREATE TABLE IF NOT EXISTS `public_diagnosis_attempts` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `ip_hash` CHAR(64) NOT NULL,
+  `created_at` VARCHAR(32) NOT NULL DEFAULT (DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX IF NOT EXISTS `idx_public_diagnosis_attempts_ip` ON `public_diagnosis_attempts` (`ip_hash`, `created_at`);
 
 CREATE INDEX IF NOT EXISTS `idx_business_diagnoses_event_id` ON `business_diagnoses` (`event_id`);
 CREATE INDEX IF NOT EXISTS `idx_business_diagnosis_items_aspect` ON `business_diagnosis_items` (`aspect`);

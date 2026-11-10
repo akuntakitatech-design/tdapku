@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { env } from "@/lib/runtime-env";
 import {
   DIAGNOSIS_ASPECTS,
@@ -59,6 +60,8 @@ export type DiagnosisRecord = {
   scoreMax: number;
   scorePercent: number;
   resultLabel: string;
+  source: string;
+  publicRef: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -79,7 +82,8 @@ const DIAGNOSIS_SELECT = `
   d.monthly_revenue AS monthlyRevenue, d.monthly_revenue_target AS monthlyRevenueTarget,
   d.target_90_days AS target90Days, d.q1, d.q2, d.q3, d.q4, d.q5, d.q6,
   d.score_total AS scoreTotal, d.score_max AS scoreMax, d.score_percent AS scorePercent,
-  d.result_label AS resultLabel, d.created_at AS createdAt, d.updated_at AS updatedAt`;
+  d.result_label AS resultLabel, d.source, d.public_ref AS publicRef,
+  d.created_at AS createdAt, d.updated_at AS updatedAt`;
 
 /** Token form = qr_token peserta, pola yang sama dengan form feedback (`/feedback/[token]`). */
 export async function findParticipantByToken(token: string) {
@@ -117,7 +121,8 @@ export async function listDiagnosisParticipants() {
       ap.qr_token AS token,
       ap.event_id AS eventId, e.name AS eventName, e.event_date AS eventDate, p.title AS programTitle,
       d.id AS diagnosisId, d.score_total AS scoreTotal, d.score_max AS scoreMax,
-      d.score_percent AS scorePercent, d.result_label AS resultLabel, d.business_name AS businessName,
+      d.score_percent AS scorePercent, d.result_label AS resultLabel, d.source AS diagnosisSource,
+      d.business_name AS businessName,
       d.updated_at AS updatedAt
     FROM attendance_participants ap
     JOIN attendance_events e ON e.id = ap.event_id
@@ -138,6 +143,7 @@ export async function listDiagnosisParticipants() {
       scoreMax: number | null;
       scorePercent: number | null;
       resultLabel: string | null;
+      diagnosisSource: string | null;
       businessName: string | null;
       updatedAt: string | null;
     }>();
@@ -150,13 +156,13 @@ export async function getDiagnosisDetail(id: number) {
     SELECT ${DIAGNOSIS_SELECT}, ap.name AS participantName, ap.phone AS participantPhone,
       e.name AS eventName, e.event_date AS eventDate, p.title AS programTitle
     FROM business_diagnoses d
-    JOIN attendance_participants ap ON ap.id = d.participant_id
+    LEFT JOIN attendance_participants ap ON ap.id = d.participant_id
     LEFT JOIN attendance_events e ON e.id = d.event_id
     LEFT JOIN programs p ON p.id = e.program_id
     WHERE d.id = ? LIMIT 1`).bind(id).first<
     DiagnosisRecord & {
-      participantName: string;
-      participantPhone: string;
+      participantName: string | null;
+      participantPhone: string | null;
       eventName: string | null;
       eventDate: string | null;
       programTitle: string | null;
@@ -274,17 +280,19 @@ export async function saveDiagnosisByToken(token: string, input: DiagnosisInput)
 export async function listDiagnosisForExport() {
   const headers = await db().prepare(`
     SELECT d.id AS diagnosisId, ap.name AS participantName, ap.phone,
-      e.name AS eventName, d.business_name AS businessName, d.owner_name AS ownerName,
+      e.name AS eventName, d.source AS source,
+      d.business_name AS businessName, d.owner_name AS ownerName,
       d.diagnosis_date AS diagnosisDate, d.mentor_name AS mentorName,
       d.score_total AS scoreTotal, d.score_max AS scoreMax,
       d.score_percent AS scorePercent, d.result_label AS resultLabel, d.updated_at AS updatedAt
     FROM business_diagnoses d
-    JOIN attendance_participants ap ON ap.id = d.participant_id
+    LEFT JOIN attendance_participants ap ON ap.id = d.participant_id
     LEFT JOIN attendance_events e ON e.id = d.event_id
     ORDER BY d.score_percent DESC, ap.name COLLATE NOCASE`).all<{
       diagnosisId: number;
-      participantName: string;
+      participantName: string | null;
       phone: string;
+      source: string;
       eventName: string | null;
       businessName: string;
       ownerName: string;
@@ -318,4 +326,131 @@ export async function listDiagnosisForExport() {
     aspects: DIAGNOSIS_ASPECTS.map((aspect) => ({ key: aspect.key, label: aspect.label })),
     scoresByDiagnosis: byDiagnosis,
   };
+}
+
+function createPublicRef() {
+  return randomBytes(12).toString("hex");
+}
+
+export type PublicDiagnosisRow = {
+  diagnosisId: number;
+  publicRef: string;
+  ownerName: string;
+  businessName: string;
+  whatsapp: string;
+  diagnosisDate: string;
+  scoreTotal: number;
+  scoreMax: number;
+  scorePercent: number;
+  resultLabel: string;
+  updatedAt: string;
+};
+
+/** Pengisian dari form terbuka (tanpa peserta kelas) — dipakai backoffice. */
+export async function listPublicDiagnoses() {
+  const rows = await db().prepare(`
+    SELECT id AS diagnosisId, public_ref AS publicRef, owner_name AS ownerName,
+      business_name AS businessName, whatsapp, diagnosis_date AS diagnosisDate,
+      score_total AS scoreTotal, score_max AS scoreMax, score_percent AS scorePercent,
+      result_label AS resultLabel, updated_at AS updatedAt
+    FROM business_diagnoses WHERE source = 'umum'
+    ORDER BY id DESC`).all<PublicDiagnosisRow>();
+
+  return rows.results;
+}
+
+/** Hasil pengisian umum, dibuka lagi lewat public_ref (tanpa login). */
+export async function getDiagnosisByPublicRef(ref: string) {
+  if (!ref || ref.length > 64) return null;
+
+  const diagnosis = await db().prepare(`
+    SELECT ${DIAGNOSIS_SELECT} FROM business_diagnoses d
+    WHERE d.public_ref = ? AND d.source = 'umum' LIMIT 1`).bind(ref).first<DiagnosisRecord>();
+
+  if (!diagnosis) return null;
+
+  const items = await db().prepare(`
+    SELECT item_no AS itemNo, aspect, score, note FROM business_diagnosis_items
+    WHERE diagnosis_id = ? ORDER BY item_no`).bind(diagnosis.id).all<DiagnosisItemRow>();
+
+  return { diagnosis, items: items.results };
+}
+
+export async function countRecentPublicDiagnosisAttempts(ipHash: string, sinceUtc: string) {
+  const row = await db().prepare(`
+    SELECT COUNT(*) AS total FROM public_diagnosis_attempts
+    WHERE ip_hash = ? AND created_at > ?`).bind(ipHash, sinceUtc).first<{ total: number }>();
+
+  return Number(row?.total ?? 0);
+}
+
+export async function recordPublicDiagnosisAttempt(ipHash: string) {
+  await db().prepare(`INSERT INTO public_diagnosis_attempts (ip_hash) VALUES (?)`).bind(ipHash).run();
+}
+
+/**
+ * Simpan diagnosis dari form terbuka. Setiap pengisian membuat baris baru
+ * (tanpa peserta kelas) dengan kunci acak `public_ref` untuk membuka hasilnya lagi.
+ */
+export async function savePublicDiagnosis(input: DiagnosisInput) {
+  const { scores, invalid } = normalizeDiagnosisScores(input.scores);
+  if (invalid.length) {
+    throw new Error(`Masih ada ${invalid.length} pernyataan yang belum dinilai (skala 1-5).`);
+  }
+
+  const ownerName = text(input.ownerName, 255);
+  const businessName = text(input.businessName, 255);
+  const whatsapp = text(input.whatsapp, 64);
+  if (!ownerName || !businessName) throw new Error("Nama pemilik dan nama usaha wajib diisi.");
+  if (!whatsapp) throw new Error("Nomor WhatsApp wajib diisi.");
+
+  const answers = readAnswers(input.answers);
+  if (answers.some((answer) => !answer)) throw new Error("Semua pertanyaan gambaran umum wajib diisi.");
+
+  const result = computeDiagnosisResult(scores);
+  const publicRef = createPublicRef();
+
+  const identity = [
+    ownerName,
+    businessName,
+    text(input.diagnosisDate, 32),
+    text(input.businessType, 255),
+    text(input.mainProduct, 255),
+    text(input.mentorName, 255),
+    text(input.address, 500),
+    whatsapp,
+    text(input.socialMedia, 255),
+    text(input.startYear, 32),
+    text(input.employeeCount, 32),
+    text(input.branchCount, 32),
+    text(input.monthlyRevenue, 64),
+    text(input.monthlyRevenueTarget, 64),
+    text(input.target90Days, 255),
+  ];
+  const values = [publicRef, ...identity, ...answers, result.score, result.maxScore, result.percent, result.label];
+  const placeholders = values.map(() => "?").join(", ");
+
+  const inserted = await db().prepare(`
+    INSERT INTO business_diagnoses (
+      participant_id, event_id, source, public_ref,
+      owner_name, business_name, diagnosis_date, business_type, main_product,
+      mentor_name, address, whatsapp, social_media, start_year, employee_count, branch_count,
+      monthly_revenue, monthly_revenue_target, target_90_days,
+      q1, q2, q3, q4, q5, q6, score_total, score_max, score_percent, result_label
+    ) VALUES (NULL, NULL, 'umum', ${placeholders}) RETURNING id`)
+    .bind(...values)
+    .first<{ id: number }>();
+
+  if (!inserted?.id) throw new Error("Diagnosis belum dapat disimpan.");
+
+  const statements = DIAGNOSIS_ASPECTS.flatMap((aspect) =>
+    aspect.items.map((item) =>
+      db().prepare(`INSERT INTO business_diagnosis_items (diagnosis_id, aspect, item_no, statement, score, max_score)
+        VALUES (?,?,?,?,?,?)`)
+        .bind(inserted.id, aspect.key, item.no, item.statement, scores[item.no], DIAGNOSIS_ITEM_MAX_SCORE),
+    ),
+  );
+  await db().batch(statements);
+
+  return { diagnosisId: inserted.id, publicRef, ...result };
 }

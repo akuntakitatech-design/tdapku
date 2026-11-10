@@ -167,6 +167,13 @@ export const DIAGNOSIS_IDENTITY_FIELDS = [
 
 export type DiagnosisIdentityKey = (typeof DIAGNOSIS_IDENTITY_FIELDS)[number]["key"];
 
+/** Sumber pengisian: peserta kelas (lewat token undangan) atau form terbuka untuk umum. */
+export type DiagnosisSource = "peserta" | "umum";
+
+export function diagnosisSourceLabel(source: string | null | undefined) {
+  return source === "umum" ? "Umum" : "Peserta kelas";
+}
+
 /** Skor maksimal per item. */
 export const DIAGNOSIS_ITEM_MAX_SCORE = 5;
 

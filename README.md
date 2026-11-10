@@ -84,7 +84,7 @@ Kode bisnis di `backend/db/*` **masih ditulis dengan API D1** (`prepare/bind/fir
     │   ├── page.tsx          # Beranda publik
     │   ├── login/, account/password/     # Autentikasi
     │   ├── admin/, member/, program/, kalender/, tentang/
-    │   ├── daftar/[eventId]/, checkin/, feedback/, form/member/, diagnosis/[token]/   # Halaman publik
+    │   ├── daftar/[eventId]/, checkin/, feedback/, form/member/, diagnosis/ (+ [token]/, hasil/[ref]/)   # Halaman publik
     │   ├── chatgpt-auth.ts   # Resolver identitas sesi → user (dipakai halaman & API)
     │   └── api/              # Route Handlers (REST) — lihat bagian Data Flow
     │       ├── health/       # GET /api/health → cek MariaDB (dipakai HEALTHCHECK Docker)
@@ -99,7 +99,7 @@ Kode bisnis di `backend/db/*` **masih ditulis dengan API D1** (`prepare/bind/fir
     │       ├── public-programs/, public-registration/[eventId]/{flyer,qris,payment}/
     │       ├── public-media/, publication-media/, public-site/ (+ image/), public-site/admin/{section,navigation,member-submissions}/
     │       ├── public/{member-content,member-submission}/, public-feedback/, public-event-feedback/
-    │       └── business-diagnosis/ (+ [id]/, export/), public-diagnosis/[token]/
+    │       └── business-diagnosis/ (+ [id]/, export/), public-diagnosis/ (+ [token]/, hasil/[ref]/)
     │
     ├── components/           # Komponen React (client) per modul bisnis
     │   ├── ui/               # Primitif Shadcn (button, dialog, table, ...)
@@ -230,6 +230,7 @@ Key objek **identik** dengan data lama (`R2_PREFIX` kosong), sehingga 39 objek h
 - **Member publik**: `POST /api/membership/public` → `GET .../qris` (gambar QRIS dari R2) → `POST .../payment` (upload bukti ke R2) → pengurus verifikasi via `/api/membership`.
 - **Event publik**: `GET /api/public-programs/[code]` → `POST /api/public-registration/[eventId]` → bukti bayar → QR check-in di `/checkin` → `POST /api/attendance`.
 - **Diagnosis bisnis (kelas reguler)**: pengurus membagikan link dari menu **Diagnosis Bisnis**; token = `attendance_participants.qr_token` → peserta mengisi 4 langkah di `/diagnosis/[token]` → `POST /api/public-diagnosis/[token]` menghitung ulang skor 9 aspek (61 butir, maks 305) → `business_diagnoses` + `business_diagnosis_items`. Backoffice: `GET /api/business-diagnosis` (daftar peserta + status), `GET /api/business-diagnosis/[id]` (detail), `GET /api/business-diagnosis/export` (CSV).
+- **Diagnosis bisnis (form terbuka untuk umum)**: siapa pun dapat mengisi di `/diagnosis` tanpa token -> `POST /api/public-diagnosis` (honeypot + batas 5 pengisian/jam per IP lewat tabel `public_diagnosis_attempts`) -> tersimpan dengan `source='umum'`, `participant_id` NULL, dan `public_ref` acak -> hasil dapat dibuka lagi di `/diagnosis/hasil/[public_ref]`. Backoffice menampilkan kolom **Sumber** (Peserta kelas / Umum) pada daftar, filter, dan ekspor CSV.
 - **Website publik (CMS)**: pengurus (ketua_ksb) mengedit section di `/api/public-site/admin/section` (Draft → Preview → Publish) dan menu di `/api/public-site/admin/navigation` (`is_active` 1 = tampil). Publik membaca read-only lewat `db/public-homepage.ts` / `GET /api/public-site` (hanya section published + visible dan menu aktif; fallback bila kosong). Gambar section publik via `GET /api/public-site/image`. Header/footer semua halaman publik (`/`, `/tentang`, `/program`, `/program/[code]`, `/kalender`) = `PublicShell`.
 
 ---
