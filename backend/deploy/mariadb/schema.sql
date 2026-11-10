@@ -787,3 +787,63 @@ ALTER TABLE `vps_auth_sessions` ADD CONSTRAINT `vps_auth_sessions_email_fkey` FO
 -- Manajemen akun (Super Admin): soft delete profil pengurus. Aditif & nullable; NULL = belum dihapus.
 -- Baris users tidak pernah di-DELETE agar seluruh relasi historis (program, approval, transaksi, LPJ, dll.) tetap utuh.
 ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME(3) NULL;
+
+-- ============================================================================
+-- Diagnosis Bisnis UMKM (peserta kelas reguler)
+-- Satu diagnosis per peserta (di-upsert saat peserta mengirim ulang lewat link token).
+-- Rincian 61 butir disimpan baris-per-baris agar bisa dicari butir terlemah.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `business_diagnoses` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `participant_id` BIGINT NOT NULL,
+  `event_id` BIGINT NULL,
+  `owner_name` TEXT NOT NULL DEFAULT '',
+  `business_name` TEXT NOT NULL DEFAULT '',
+  `diagnosis_date` VARCHAR(32) NOT NULL DEFAULT '',
+  `business_type` TEXT NOT NULL DEFAULT '',
+  `main_product` TEXT NOT NULL DEFAULT '',
+  `mentor_name` TEXT NOT NULL DEFAULT '',
+  `address` TEXT NOT NULL DEFAULT '',
+  `whatsapp` TEXT NOT NULL DEFAULT '',
+  `social_media` TEXT NOT NULL DEFAULT '',
+  `start_year` VARCHAR(32) NOT NULL DEFAULT '',
+  `employee_count` VARCHAR(32) NOT NULL DEFAULT '',
+  `branch_count` VARCHAR(32) NOT NULL DEFAULT '',
+  `monthly_revenue` VARCHAR(64) NOT NULL DEFAULT '',
+  `monthly_revenue_target` VARCHAR(64) NOT NULL DEFAULT '',
+  `target_90_days` TEXT NOT NULL DEFAULT '',
+  `q1` MEDIUMTEXT NOT NULL DEFAULT '',
+  `q2` MEDIUMTEXT NOT NULL DEFAULT '',
+  `q3` MEDIUMTEXT NOT NULL DEFAULT '',
+  `q4` MEDIUMTEXT NOT NULL DEFAULT '',
+  `q5` MEDIUMTEXT NOT NULL DEFAULT '',
+  `q6` MEDIUMTEXT NOT NULL DEFAULT '',
+  `score_total` INT NOT NULL DEFAULT 0,
+  `score_max` INT NOT NULL DEFAULT 305,
+  `score_percent` DOUBLE NOT NULL DEFAULT 0,
+  `result_label` TEXT NOT NULL DEFAULT '',
+  `created_at` VARCHAR(32) NOT NULL DEFAULT (DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')),
+  `updated_at` VARCHAR(32) NOT NULL DEFAULT (DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `business_diagnoses_participant_key` (`participant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `business_diagnosis_items` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `diagnosis_id` BIGINT NOT NULL,
+  `aspect` VARCHAR(64) NOT NULL,
+  `item_no` INT NOT NULL,
+  `statement` TEXT NOT NULL DEFAULT '',
+  `score` INT NOT NULL DEFAULT 0,
+  `max_score` INT NOT NULL DEFAULT 5,
+  `note` TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `business_diagnosis_items_unique` (`diagnosis_id`, `item_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX IF NOT EXISTS `idx_business_diagnoses_event_id` ON `business_diagnoses` (`event_id`);
+CREATE INDEX IF NOT EXISTS `idx_business_diagnosis_items_aspect` ON `business_diagnosis_items` (`aspect`);
+
+ALTER TABLE `business_diagnoses` ADD CONSTRAINT `fk_business_diagnoses_participant_id` FOREIGN KEY IF NOT EXISTS (participant_id) REFERENCES `attendance_participants` (id);
+ALTER TABLE `business_diagnoses` ADD CONSTRAINT `fk_business_diagnoses_event_id` FOREIGN KEY IF NOT EXISTS (event_id) REFERENCES `attendance_events` (id);
+ALTER TABLE `business_diagnosis_items` ADD CONSTRAINT `fk_business_diagnosis_items_diagnosis_id` FOREIGN KEY IF NOT EXISTS (diagnosis_id) REFERENCES `business_diagnoses` (id) ON DELETE CASCADE;

@@ -28,6 +28,7 @@ import {
   Bell,
   Images,
   Globe2,
+  Stethoscope,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -88,6 +89,10 @@ const MembershipManagement = dynamic(
   () => import("@/components/membership-management"),
   { loading: SectionLoading },
 );
+const DiagnosisManagement = dynamic(
+  () => import("@/components/program-management/diagnosis-management"),
+  { loading: SectionLoading },
+);
 const PublicMediaManagement = dynamic(
   () => import("@/components/program-management/public-media-management"),
   { loading: SectionLoading },
@@ -101,6 +106,7 @@ type View =
   | "finance"
   | "treasury"
   | "attendance"
+  | "diagnosis"
   | "membership"
   | "website"
   | "publication"
@@ -162,6 +168,7 @@ const primaryNavigation = [
   { id: "finance" as const, label: "Keuangan & LPJ", icon: WalletCards },
   { id: "treasury" as const, label: "Bendahara", icon: Landmark },
   { id: "attendance" as const, label: "Kehadiran Event", icon: UserCheck },
+  { id: "diagnosis" as const, label: "Diagnosis Bisnis", icon: Stethoscope },
   {
     id: "membership" as const,
     label: "Pendaftaran Member",
@@ -182,6 +189,7 @@ const mobileMoreNavigation = [
       "finance",
       "treasury",
       "membership",
+      "diagnosis",
       "website",
       "publication",
       "reports",
@@ -204,6 +212,8 @@ function preloadView(view: View) {
   if (view === "treasury")
     void import("@/components/program-management/treasury-dashboard");
   if (view === "attendance") void import("@/components/attendance-app");
+  if (view === "diagnosis")
+    void import("@/components/program-management/diagnosis-management");
   if (view === "membership") void import("@/components/membership-management");
   if (view === "publication")
     void import("@/components/program-management/public-media-management");
@@ -874,6 +884,8 @@ export default function ProgramApp({
             <TreasuryDashboard />
           ) : activeView === "attendance" ? (
             <AttendanceApp />
+          ) : activeView === "diagnosis" ? (
+            <DiagnosisManagement />
           ) : activeView === "membership" &&
             access.permissions.manageMembership ? (
             <MembershipManagement />
